@@ -33,6 +33,7 @@ class ApproveRequest(BaseModel):
 
 class ParentCreate(BaseModel):
     kakao_user_id: str
+    phone_number: Optional[str] = None
     child_name: str
     child_age: Optional[int] = None
     level: str = "표현력"
@@ -211,8 +212,13 @@ def approve_and_send_submission(
         )
 
     # Send via Kakao
+    if not parent.phone_number:
+        raise HTTPException(
+            status_code=400,
+            detail="학부모 전화번호가 등록되지 않았습니다. 학부모 정보에서 전화번호를 먼저 등록해주세요.",
+        )
     result = send_feedback_message(
-        kakao_user_id=parent.kakao_user_id,
+        phone_number=parent.phone_number,
         child_name=parent.child_name,
         feedback_text=final_feedback,
     )
@@ -284,6 +290,7 @@ def create_or_update_parent(body: ParentCreate, db: Session = Depends(get_db)):
         # Create new parent
         parent = Parent(
             kakao_user_id=body.kakao_user_id,
+            phone_number=body.phone_number,
             child_name=body.child_name,
             child_age=body.child_age,
             level=body.level,

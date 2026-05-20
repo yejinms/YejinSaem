@@ -1,117 +1,107 @@
 """
-kakao_service.py - Kakao Channel API integration for sending messages to parents
+kakao_service.py - Solapi를 통한 카카오 친구톡 발송
 """
 
+import hashlib
+import hmac
 import logging
 import os
+import time
+import uuid
 
 import requests
 
 logger = logging.getLogger(__name__)
 
+SOLAPI_API_URL = "https://api.solapi.com/messages/v4/send"
 
-def get_kakao_headers() -> dict:
-    """Build authorization headers for Kakao API."""
-    token = os.getenv("KAKAO_CHANNEL_TOKEN")
-    if not token:
-        raise ValueError("KAKAO_CHANNEL_TOKEN environment variable is not set")
-    return {
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json",
-    }
+
+def _make_auth_header() -> str:
+    api_key = os.getenv("SOLAPI_API_KEY")
+    api_secret = os.getenv("SOLAPI_API_SECRET")
+    if not api_key or not api_secret:
+        raise ValueError("SOLAPI_API_KEY 또는 SOLAPI_API_SECRET 환경변수가 설정되지 않았습니다")
+
+    date = str(int(time.time() * 1000))
+    salt = str(uuid.uuid4()).replace("-", "")
+    signature_str = date + salt
+    signature = hmac.new(
+        api_secret.encode("utf-8"),
+        signature_str.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+    return f"HMAC-SHA256 apiKey={api_key}, date={date}, salt={salt}, signature={signature}"
 
 
 def send_message(kakao_user_id: str, message_text: str) -> dict:
     """
-    Send a text message to a parent via Kakao Channel (친구톡/알림톡).
-
-    Args:
-        kakao_user_id: The Kakao user ID of the parent (from webhook)
-        message_text: The feedback text to send
-
-    Returns:
-        Response dict with success status and details
-
-    Note:
-        Kakao Business Channel API endpoint may vary depending on your setup.
-        See: https://developers.kakao.com/docs/latest/ko/message/rest-api
-        For production, you may need to use KakaoTalk Channel Message API or
-        Kakao i Open Builder's proactive message sending feature.
+    솔라피 친구톡 API로 학부모에게 메시지 발송.
+    kakao_user_id: 카카오 채널 사용자 ID (수신자 전화번호로 대체 필요 — 아래 주석 참고)
     """
-    # Kakao Channel message API endpoint
-    # TODO: Replace with actual endpoint based on your Kakao Business setup
-    # Option 1: KakaoTalk Channel (친구톡) - requires Channel subscription
-    # Option 2: Kakao i Open Builder proactive message API
-    kakao_api_base = os.getenv(
-        "KAKAO_API_BASE_URL", "https://kapi.kakao.com"
-    )
-    endpoint = f"{kakao_api_base}/v1/api/talk/channels/message/send"
+    # 솔라피 친구톡은 수신자를 전화번호로 식별함.
+    # kakao_user_id 대신 DB에서 학부모 전화번호를 조회해서 넘겨야 함.
+    # 이 함수는 routers/admin.py에서 phone_number를 직접 전달하도록 사용됨.
+    phone_number = kakao_user_id  # 실제로는 전화번호 전달
+    sender_key = os.getenv("SOLAPI_SENDER_KEY")
+    sender_phone = os.getenv("SOLAPI_SENDER_PHONE")
 
-    headers = get_kakao_headers()
+    if not sender_key or not sender_phone:
+        raise ValueError("SOLAPI_SENDER_KEY 또는 SOLAPI_SENDER_PHONE 환경변수가 설정되지 않았습니다")
 
     payload = {
-        "receiver_uuids": [kakao_user_id],
-        "template_object": {
-            "object_type": "text",
+        "message": {
+            "to": phone_number,
+            "from": sender_phone,
+            "type": "FT",  # 친구톡 텍스트
+            "kakaoOptions": {
+                "senderKey": sender_key,
+                "templateCode": "",  # 자유 양식 친구톡은 템플릿 코드 불필요
+                "buttonName": "",
+                "buttonUrl": "",
+                "disableSms": False,  # 친구톡 실패 시 SMS로 대체 발송
+            },
             "text": message_text,
-            "link": {},
-        },
+        }
     }
 
     try:
-        response = requests.post(endpoint, json=payload, headers=headers, timeout=10)
+        response = requests.post(
+            SOLAPI_API_URL,
+            json=payload,
+            headers={
+                "Authorization": _make_auth_header(),
+                "Content-Type": "application/json",
+            },
+            timeout=10,
+        )
         response.raise_for_status()
         result = response.json()
-        logger.info(f"Message sent to {kakao_user_id}: {result}")
+        logger.info(f"친구톡 발송 완료 → {phone_number}: {result}")
         return {"success": True, "response": result}
     except requests.exceptions.HTTPError as e:
-        logger.error(f"Kakao API HTTP error for user {kakao_user_id}: {e}")
-        logger.error(f"Response body: {e.response.text if e.response else 'N/A'}")
-        return {
-            "success": False,
-            "error": str(e),
-            "response_body": e.response.text if e.response else None,
-        }
+        body = e.response.text if e.response else "N/A"
+        logger.error(f"솔라피 HTTP 오류 → {phone_number}: {e} | {body}")
+        return {"success": False, "error": str(e), "response_body": body}
     except requests.exceptions.RequestException as e:
-        logger.error(f"Kakao API request failed for user {kakao_user_id}: {e}")
+        logger.error(f"솔라피 요청 실패 → {phone_number}: {e}")
         return {"success": False, "error": str(e)}
 
 
-def send_feedback_message(kakao_user_id: str, child_name: str, feedback_text: str) -> dict:
-    """
-    Send a formatted feedback message to a parent.
-
-    Args:
-        kakao_user_id: The Kakao user ID of the parent
-        child_name: The child's name for the message greeting
-        feedback_text: The generated feedback text
-
-    Returns:
-        Response dict with success status
-    """
-    message = f"안녕하세요! 예진샘이에요 😊\n\n{child_name} 친구의 글쓰기 피드백을 보내드려요.\n\n{feedback_text}\n\n다음 글쓰기도 기대할게요! 화이팅! 🌟"
-    return send_message(kakao_user_id, message)
+def send_feedback_message(phone_number: str, child_name: str, feedback_text: str) -> dict:
+    message = (
+        f"안녕하세요! 예진샘이에요 😊\n\n"
+        f"{child_name} 친구의 글쓰기 피드백을 보내드려요.\n\n"
+        f"{feedback_text}\n\n"
+        f"다음 글쓰기도 기대할게요! 화이팅! 🌟"
+    )
+    return send_message(phone_number, message)
 
 
 def build_kakao_response(text: str) -> dict:
-    """
-    Build a valid Kakao i Open Builder webhook response.
-
-    Args:
-        text: Text to send back to the user
-
-    Returns:
-        Properly formatted Kakao response dict
-    """
     return {
         "version": "2.0",
         "template": {
-            "outputs": [
-                {
-                    "simpleText": {
-                        "text": text,
-                    }
-                }
-            ]
+            "outputs": [{"simpleText": {"text": text}}]
         },
     }

@@ -36,6 +36,7 @@ class Parent(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     kakao_user_id = Column(String, unique=True, index=True, nullable=False)
+    phone_number = Column(String, nullable=True)  # 솔라피 친구톡 발송용
     child_name = Column(String, nullable=False)
     child_age = Column(Integer, nullable=True)
     level = Column(
