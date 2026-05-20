@@ -6,8 +6,8 @@ import hashlib
 import hmac
 import logging
 import os
-import time
 import uuid
+from datetime import datetime, timezone
 
 import requests
 
@@ -22,7 +22,7 @@ def _make_auth_header() -> str:
     if not api_key or not api_secret:
         raise ValueError("SOLAPI_API_KEY 또는 SOLAPI_API_SECRET 환경변수가 설정되지 않았습니다")
 
-    date = str(int(time.time() * 1000))
+    date = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
     salt = str(uuid.uuid4()).replace("-", "")
     signature_str = date + salt
     signature = hmac.new(
