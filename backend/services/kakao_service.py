@@ -49,14 +49,18 @@ def send_message(kakao_user_id: str, message_text: str) -> dict:
     if not sender_key or not sender_phone:
         raise ValueError("SOLAPI_SENDER_KEY 또는 SOLAPI_SENDER_PHONE 환경변수가 설정되지 않았습니다")
 
+    pf_id = os.getenv("SOLAPI_PF_ID")
+    if not pf_id:
+        raise ValueError("SOLAPI_PF_ID 환경변수가 설정되지 않았습니다")
+
     payload = {
         "message": {
             "to": phone_number,
             "from": sender_phone,
-            "type": "CTA",  # 친구톡 텍스트
+            "type": "BMS_FREE",  # 브랜드 메시지 (2026.01.01 친구톡 종료로 전환)
             "kakaoOptions": {
-                "senderKey": sender_key,
-                "disableSms": False,  # 친구톡 실패 시 SMS로 대체 발송
+                "pfId": pf_id,
+                "disableSms": False,  # 발송 실패 시 SMS로 대체 발송
             },
             "text": message_text,
         }
