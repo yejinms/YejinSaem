@@ -4,11 +4,16 @@ admin.py - Admin REST API for managing submissions and parents
 
 import logging
 import os
+import uuid
+from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+
+UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", "./uploads"))
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 from database import Parent, Submission, get_db
 from services.claude_service import generate_feedback
@@ -46,6 +51,35 @@ class ParentUpdate(BaseModel):
 
 
 # ---------- Submission endpoints ----------
+
+@router.post("/submissions/upload", status_code=status.HTTP_201_CREATED)
+async def upload_submission(
+    parent_id: int,
+    photo: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    """관리자가 직접 학부모 사진을 업로드해서 제출 생성."""
+    parent = db.query(Parent).filter(Parent.id == parent_id).first()
+    if not parent:
+        raise HTTPException(status_code=404, detail="학부모를 찾을 수 없습니다")
+
+    ext = Path(photo.filename).suffix if photo.filename else ".jpg"
+    filename = f"{uuid.uuid4().hex}{ext}"
+    dest = UPLOAD_DIR / filename
+    content = await photo.read()
+    dest.write_bytes(content)
+
+    submission = Submission(
+        parent_id=parent_id,
+        photo_path=str(dest),
+        level=parent.level,
+        status="pending",
+    )
+    db.add(submission)
+    db.commit()
+    db.refresh(submission)
+    return {"id": submission.id, "photo_path": str(dest), "status": "pending"}
+
 
 @router.get("/submissions")
 def list_submissions(
