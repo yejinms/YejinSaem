@@ -1,0 +1,1089 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>예진샘 관리자</title>
+  <style>
+    /* ===== Reset & Base ===== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --primary: #7BAB8B;
+      --primary-dark: #5e9070;
+      --primary-light: #c5dece;
+      --bg: #f5f9f6;
+      --surface: #ffffff;
+      --border: #d6e8dc;
+      --text: #2c3e35;
+      --text-muted: #6b8878;
+      --danger: #e05c5c;
+      --warning: #e8a24a;
+      --success: #4caf80;
+      --radius: 12px;
+      --shadow: 0 2px 12px rgba(0,0,0,0.08);
+      --font: 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+    }
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      font-size: 15px;
+      line-height: 1.6;
+    }
+
+    /* ===== Header ===== */
+    header {
+      background: var(--primary);
+      color: white;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+    header h1 { font-size: 18px; font-weight: 700; }
+    header .subtitle { font-size: 12px; opacity: 0.8; }
+
+    /* ===== Tabs ===== */
+    .tabs {
+      display: flex;
+      background: var(--surface);
+      border-bottom: 2px solid var(--border);
+      position: sticky;
+      top: 60px;
+      z-index: 90;
+    }
+    .tab-btn {
+      flex: 1;
+      padding: 14px 8px;
+      border: none;
+      background: none;
+      font-family: var(--font);
+      font-size: 14px;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      transition: all 0.2s;
+      font-weight: 500;
+    }
+    .tab-btn.active {
+      color: var(--primary-dark);
+      border-bottom-color: var(--primary);
+      font-weight: 700;
+    }
+
+    /* ===== Tab Panels ===== */
+    .tab-panel { display: none; padding: 16px; }
+    .tab-panel.active { display: block; }
+
+    /* ===== Cards ===== */
+    .card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      margin-bottom: 12px;
+      overflow: hidden;
+    }
+    .card-body { padding: 14px 16px; }
+
+    /* ===== Submission Item ===== */
+    .submission-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .submission-item:hover { background: var(--bg); }
+    .submission-item:active { background: var(--primary-light); }
+
+    .thumb {
+      width: 64px;
+      height: 64px;
+      border-radius: 8px;
+      object-fit: cover;
+      flex-shrink: 0;
+      background: var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+    }
+    .thumb img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; }
+
+    .submission-info { flex: 1; min-width: 0; }
+    .child-name { font-weight: 700; font-size: 15px; }
+    .sub-detail { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+    .status-badge {
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 20px;
+      font-weight: 600;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .status-pending   { background: #fff3cd; color: #856404; }
+    .status-generated { background: #cfe2ff; color: #084298; }
+    .status-approved  { background: #d1e7dd; color: #0a3622; }
+    .status-sent      { background: #d1e7dd; color: #0a3622; }
+
+    /* ===== Section Title ===== */
+    .section-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin: 20px 0 10px;
+    }
+    .section-title:first-child { margin-top: 0; }
+
+    /* ===== Empty State ===== */
+    .empty {
+      text-align: center;
+      padding: 48px 20px;
+      color: var(--text-muted);
+    }
+    .empty .icon { font-size: 48px; margin-bottom: 12px; }
+    .empty p { font-size: 14px; }
+
+    /* ===== Loading ===== */
+    .loading {
+      text-align: center;
+      padding: 32px;
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    /* ===== Buttons ===== */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 12px 20px;
+      border: none;
+      border-radius: 10px;
+      font-family: var(--font);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      width: 100%;
+    }
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+    }
+    .btn-primary:hover { background: var(--primary-dark); }
+    .btn-primary:disabled { background: #a8c8b4; cursor: not-allowed; }
+
+    .btn-success {
+      background: var(--success);
+      color: white;
+    }
+    .btn-success:hover { background: #3d9c6a; }
+    .btn-success:disabled { background: #9fd4be; cursor: not-allowed; }
+
+    .btn-outline {
+      background: transparent;
+      color: var(--primary-dark);
+      border: 2px solid var(--primary);
+    }
+    .btn-outline:hover { background: var(--primary-light); }
+
+    .btn-danger {
+      background: var(--danger);
+      color: white;
+    }
+    .btn-danger:hover { background: #c84040; }
+
+    .btn-sm {
+      padding: 8px 14px;
+      font-size: 13px;
+      border-radius: 8px;
+      width: auto;
+    }
+
+    /* ===== Form Elements ===== */
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+    input[type="text"],
+    input[type="number"],
+    select,
+    textarea {
+      width: 100%;
+      padding: 11px 14px;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      font-family: var(--font);
+      font-size: 14px;
+      color: var(--text);
+      background: var(--surface);
+      transition: border-color 0.2s;
+      outline: none;
+    }
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--primary);
+    }
+    textarea { resize: vertical; min-height: 100px; }
+
+    .form-group { margin-bottom: 16px; }
+
+    /* ===== Level Selector ===== */
+    .level-selector {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+    .level-btn {
+      flex: 1;
+      padding: 10px 6px;
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      background: white;
+      font-family: var(--font);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: center;
+      color: var(--text-muted);
+      transition: all 0.2s;
+    }
+    .level-btn.active {
+      border-color: var(--primary);
+      background: var(--primary-light);
+      color: var(--primary-dark);
+    }
+
+    /* ===== Modal ===== */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 200;
+      display: none;
+      overflow-y: auto;
+    }
+    .modal-overlay.open { display: flex; flex-direction: column; }
+    .modal {
+      background: var(--surface);
+      border-radius: 20px 20px 0 0;
+      margin-top: auto;
+      width: 100%;
+      max-width: 640px;
+      margin-left: auto;
+      margin-right: auto;
+      padding-bottom: 32px;
+      min-height: 60vh;
+      animation: slideUp 0.3s ease;
+    }
+    @keyframes slideUp {
+      from { transform: translateY(50px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    .modal-handle {
+      width: 40px;
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      margin: 12px auto 0;
+    }
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px 0;
+    }
+    .modal-title { font-size: 17px; font-weight: 700; }
+    .modal-close {
+      background: none;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      color: var(--text-muted);
+      line-height: 1;
+      padding: 4px;
+    }
+    .modal-body { padding: 16px 20px; }
+
+    /* ===== Photo Viewer ===== */
+    .photo-full {
+      width: 100%;
+      max-height: 280px;
+      object-fit: contain;
+      border-radius: 12px;
+      background: #f0f4f2;
+      margin-bottom: 16px;
+    }
+    .no-photo {
+      width: 100%;
+      height: 160px;
+      background: var(--bg);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 40px;
+      margin-bottom: 16px;
+    }
+
+    /* ===== Child Info Card ===== */
+    .child-info-card {
+      background: var(--bg);
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 16px;
+    }
+    .child-info-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      margin-bottom: 4px;
+    }
+    .child-info-row:last-child { margin-bottom: 0; }
+    .child-info-row .label { color: var(--text-muted); }
+    .child-info-row .value { font-weight: 600; }
+
+    /* ===== Feedback Textarea ===== */
+    .feedback-area {
+      background: #fffef7;
+      border-color: #e8d97a;
+      min-height: 140px;
+    }
+
+    /* ===== Toast ===== */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #2c3e35;
+      color: white;
+      padding: 12px 20px;
+      border-radius: 24px;
+      font-size: 14px;
+      z-index: 500;
+      white-space: nowrap;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+      animation: toastIn 0.3s ease;
+    }
+    @keyframes toastIn {
+      from { transform: translateX(-50%) translateY(20px); opacity: 0; }
+      to { transform: translateX(-50%) translateY(0); opacity: 1; }
+    }
+
+    /* ===== History List ===== */
+    .history-item {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .history-item:last-child { border-bottom: none; }
+    .history-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .history-level { font-size: 12px; background: var(--primary-light); color: var(--primary-dark); padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+    .history-feedback { font-size: 13px; color: var(--text-muted); line-height: 1.5; }
+    .history-feedback.truncated {
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    /* ===== Parents Tab ===== */
+    .parent-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+    }
+    .parent-item:last-child { border-bottom: none; }
+    .parent-item:hover { background: var(--bg); }
+    .parent-name { font-weight: 700; font-size: 15px; }
+    .parent-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+    /* ===== Divider ===== */
+    .divider { height: 1px; background: var(--border); margin: 16px 0; }
+
+    /* ===== Spinner ===== */
+    .spinner {
+      display: inline-block;
+      width: 18px;
+      height: 18px;
+      border: 2px solid rgba(255,255,255,0.4);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ===== Responsive ===== */
+    @media (min-width: 640px) {
+      .modal { border-radius: 20px; margin: auto; max-height: 90vh; overflow-y: auto; }
+      .tabs { max-width: 640px; margin: 0 auto; }
+      .tab-panel { max-width: 640px; margin: 0 auto; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Header -->
+<header>
+  <div>
+    <h1>📝 예진샘 관리자</h1>
+    <div class="subtitle">글쓰기 피드백 서비스</div>
+  </div>
+</header>
+
+<!-- Tabs -->
+<nav class="tabs">
+  <button class="tab-btn active" onclick="switchTab('pending')" id="tab-pending">대기 목록</button>
+  <button class="tab-btn" onclick="switchTab('history')" id="tab-history">이력</button>
+  <button class="tab-btn" onclick="switchTab('parents')" id="tab-parents">학부모 관리</button>
+</nav>
+
+<!-- Tab: Pending Submissions -->
+<div class="tab-panel active" id="panel-pending">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+    <div class="section-title" style="margin:0">대기 중인 피드백</div>
+    <button class="btn btn-outline btn-sm" onclick="loadPending()">새로고침</button>
+  </div>
+  <div id="pending-list">
+    <div class="loading">불러오는 중...</div>
+  </div>
+</div>
+
+<!-- Tab: History -->
+<div class="tab-panel" id="panel-history">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+    <div class="section-title" style="margin:0">전체 이력</div>
+    <button class="btn btn-outline btn-sm" onclick="loadHistory()">새로고침</button>
+  </div>
+  <div id="history-list">
+    <div class="loading">불러오는 중...</div>
+  </div>
+</div>
+
+<!-- Tab: Parents -->
+<div class="tab-panel" id="panel-parents">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+    <div class="section-title" style="margin:0">등록된 학부모</div>
+    <button class="btn btn-primary btn-sm" onclick="openAddParent()">+ 추가</button>
+  </div>
+  <div id="parents-list">
+    <div class="loading">불러오는 중...</div>
+  </div>
+</div>
+
+<!-- ===== Modal: Submission Detail ===== -->
+<div class="modal-overlay" id="submission-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <span class="modal-title" id="modal-title">피드백 생성</span>
+      <button class="modal-close" onclick="closeModal('submission-modal')">✕</button>
+    </div>
+    <div class="modal-body" id="submission-modal-body">
+      <!-- Filled by JS -->
+    </div>
+  </div>
+</div>
+
+<!-- ===== Modal: Add/Edit Parent ===== -->
+<div class="modal-overlay" id="parent-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <span class="modal-title" id="parent-modal-title">학부모 추가</span>
+      <button class="modal-close" onclick="closeModal('parent-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <form id="parent-form" onsubmit="saveParent(event)">
+        <div class="form-group">
+          <label>카카오 사용자 ID</label>
+          <input type="text" id="p-kakao-id" placeholder="Kakao user ID" required />
+        </div>
+        <div class="form-group">
+          <label>아이 이름</label>
+          <input type="text" id="p-child-name" placeholder="예: 민준" required />
+        </div>
+        <div class="form-group">
+          <label>아이 나이</label>
+          <input type="number" id="p-child-age" placeholder="예: 8" min="5" max="15" />
+        </div>
+        <div class="form-group">
+          <label>현재 레벨</label>
+          <div class="level-selector">
+            <button type="button" class="level-btn active" data-level="표현력" onclick="selectParentLevel(this)">표현력<br><small style="font-weight:400">7~8세</small></button>
+            <button type="button" class="level-btn" data-level="초등기초" onclick="selectParentLevel(this)">초등기초<br><small style="font-weight:400">9~11세</small></button>
+            <button type="button" class="level-btn" data-level="초등심화" onclick="selectParentLevel(this)">초등심화<br><small style="font-weight:400">11~13세</small></button>
+          </div>
+          <input type="hidden" id="p-level" value="표현력" />
+        </div>
+        <button type="submit" class="btn btn-primary" id="parent-save-btn">저장</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Modal: Parent History ===== -->
+<div class="modal-overlay" id="parent-history-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <span class="modal-title" id="parent-history-title">학습 이력</span>
+      <button class="modal-close" onclick="closeModal('parent-history-modal')">✕</button>
+    </div>
+    <div class="modal-body" id="parent-history-body">
+      <div class="loading">불러오는 중...</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== Config =====
+const API_BASE = '';  // Same origin
+
+// ===== Level/Stage Data =====
+const LEVELS = {
+  '표현력': {
+    label: '표현력 (7~8세)',
+    stages: {
+      1: '감각 표현하기',
+      2: '감정 표현 추가하기',
+      3: '소재를 구체적으로 고르기',
+      4: '시간·장소 표현 추가하기',
+      5: '그래서, 그런데 넣기',
+      6: '왜냐하면 ~때문이다',
+      7: '마치 ~처럼 (직유 비유)',
+      8: '감각 두 가지 섞기',
+      9: '결과에 감정·생각 덧붙이기',
+      10: '짧은 이야기 구조 완성하기',
+    }
+  },
+  '초등기초': {
+    label: '초등 기초 (9~11세)',
+    stages: {
+      1: '그리고, 하지만, 결국 다양하게 쓰기',
+      2: '원인과 결과 구조로 쓰기',
+      3: '예를 들어 쓰기',
+      4: '먼저, 그 다음, 마지막으로',
+      5: '두 대상 비교하기',
+      6: '그럼에도 불구하고 / 반면에',
+      7: '장면 묘사에 감각 세 가지 담기',
+      8: '의인법·과장법 써보기',
+      9: '내 생각과 근거 함께 쓰기',
+      10: '처음 감정과 나중 감정이 달라지는 흐름',
+    }
+  },
+  '초등심화': {
+    label: '초등 심화 (11~13세)',
+    stages: {
+      1: '처음·중간·끝 단락 구분하기',
+      2: '주제문 먼저 쓰기',
+      3: '첫째, 둘째, 셋째로 이유 나열하기',
+      4: '반론 인정하고 재반박하기',
+      5: '독자를 의식하며 쓰기',
+      6: '비유·상징으로 주제 표현하기',
+      7: '사실과 의견 구분해서 쓰기',
+      8: '예시·인용·통계로 근거 강화하기',
+      9: '처음 문장과 끝 문장 연결하기',
+      10: '다른 시점으로 바꿔 써보기',
+    }
+  }
+};
+
+// ===== State =====
+let currentSubmissionId = null;
+let selectedLevel = null;
+let selectedStage = null;
+
+// ===== Utility =====
+function formatDate(isoString) {
+  if (!isoString) return '-';
+  const d = new Date(isoString);
+  const now = new Date();
+  const diff = now - d;
+  if (diff < 60000) return '방금 전';
+  if (diff < 3600000) return `${Math.floor(diff/60000)}분 전`;
+  if (diff < 86400000) return `${Math.floor(diff/3600000)}시간 전`;
+  return `${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
+function statusLabel(status) {
+  const map = { pending: '대기', generated: '생성됨', approved: '승인됨', sent: '전송완료' };
+  return map[status] || status;
+}
+
+function toast(msg, duration = 2500) {
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), duration);
+}
+
+async function api(path, opts = {}) {
+  const res = await fetch(API_BASE + path, {
+    headers: { 'Content-Type': 'application/json' },
+    ...opts,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || '오류가 발생했습니다.');
+  }
+  return res.json();
+}
+
+// ===== Tab Switching =====
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  document.getElementById('panel-' + tab).classList.add('active');
+
+  if (tab === 'pending') loadPending();
+  else if (tab === 'history') loadHistory();
+  else if (tab === 'parents') loadParents();
+}
+
+// ===== Modal =====
+function openModal(id) {
+  document.getElementById(id).classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+  document.body.style.overflow = '';
+}
+// Close on overlay click
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', e => {
+    if (e.target === overlay) closeModal(overlay.id);
+  });
+});
+
+// ===== Pending Submissions =====
+async function loadPending() {
+  const container = document.getElementById('pending-list');
+  container.innerHTML = '<div class="loading">불러오는 중...</div>';
+  try {
+    const all = await api('/admin/submissions');
+    const active = all.filter(s => s.status !== 'sent');
+    renderSubmissionList(container, active);
+  } catch (e) {
+    container.innerHTML = `<div class="empty"><div class="icon">⚠️</div><p>${e.message}</p></div>`;
+  }
+}
+
+function renderSubmissionList(container, submissions) {
+  if (submissions.length === 0) {
+    container.innerHTML = `
+      <div class="empty">
+        <div class="icon">📭</div>
+        <p>대기 중인 피드백이 없어요</p>
+      </div>`;
+    return;
+  }
+
+  container.innerHTML = submissions.map(s => {
+    const photoHtml = s.photo_path
+      ? `<div class="thumb"><img src="/uploads/${s.photo_path.split('/').pop()}" onerror="this.parentElement.innerHTML='📄'" /></div>`
+      : `<div class="thumb">📄</div>`;
+    const parent = s.parent;
+    const childName = parent ? parent.child_name : '(미등록)';
+    const parentName = parent ? `카카오: ${parent.kakao_user_id.slice(0,8)}...` : '';
+    const level = s.level || (parent && parent.level) || '-';
+    const stage = s.stage ? `${s.stage}단계` : '미지정';
+
+    return `
+      <div class="card">
+        <div class="card-body submission-item" onclick="openSubmission(${s.id})">
+          ${photoHtml}
+          <div class="submission-info">
+            <div class="child-name">${childName}</div>
+            <div class="sub-detail">${level} · ${stage} · ${formatDate(s.created_at)}</div>
+            <div class="sub-detail" style="margin-top:2px">${parentName}</div>
+          </div>
+          <span class="status-badge status-${s.status}">${statusLabel(s.status)}</span>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ===== Open Submission Detail Modal =====
+async function openSubmission(id) {
+  currentSubmissionId = id;
+  document.getElementById('modal-title').textContent = '피드백 생성';
+  document.getElementById('submission-modal-body').innerHTML = '<div class="loading">불러오는 중...</div>';
+  openModal('submission-modal');
+
+  try {
+    const s = await api(`/admin/submissions/${id}`);
+    renderSubmissionModal(s);
+  } catch (e) {
+    document.getElementById('submission-modal-body').innerHTML =
+      `<div class="empty"><div class="icon">⚠️</div><p>${e.message}</p></div>`;
+  }
+}
+
+function renderSubmissionModal(s) {
+  const parent = s.parent;
+  const childName = parent ? parent.child_name : '미등록';
+  const childAge = parent ? parent.child_age : '-';
+  const currentLevel = s.level || (parent && parent.level) || '표현력';
+  const currentStage = s.stage || 1;
+
+  selectedLevel = currentLevel;
+  selectedStage = currentStage;
+
+  const photoHtml = s.photo_path
+    ? `<img class="photo-full" src="/uploads/${s.photo_path.split('/').pop()}" onerror="this.style.display='none'" />`
+    : `<div class="no-photo">📄</div>`;
+
+  const stageOptions = Object.entries(LEVELS[currentLevel]?.stages || {})
+    .map(([num, title]) => `<option value="${num}" ${num == currentStage ? 'selected' : ''}>${num}단계 - ${title}</option>`)
+    .join('');
+
+  const feedbackValue = s.feedback_draft || '';
+  const isSent = s.status === 'sent';
+
+  document.getElementById('submission-modal-body').innerHTML = `
+    ${photoHtml}
+
+    <div class="child-info-card">
+      <div class="child-info-row">
+        <span class="label">아이 이름</span>
+        <span class="value">${childName}</span>
+      </div>
+      <div class="child-info-row">
+        <span class="label">나이</span>
+        <span class="value">${childAge}세</span>
+      </div>
+      <div class="child-info-row">
+        <span class="label">현재 상태</span>
+        <span class="value"><span class="status-badge status-${s.status}">${statusLabel(s.status)}</span></span>
+      </div>
+    </div>
+
+    ${isSent ? '<div style="text-align:center; padding:8px 0 16px; color: var(--success); font-weight:700;">✅ 이미 전송된 피드백입니다</div>' : ''}
+
+    <div class="form-group">
+      <label>레벨 선택</label>
+      <div class="level-selector" id="modal-level-btns">
+        ${Object.keys(LEVELS).map(lk => `
+          <button type="button" class="level-btn ${lk === currentLevel ? 'active' : ''}"
+            data-level="${lk}" onclick="selectModalLevel(this)">
+            ${lk}<br><small style="font-weight:400">${lk==='표현력'?'7~8세':lk==='초등기초'?'9~11세':'11~13세'}</small>
+          </button>`).join('')}
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>단계 선택</label>
+      <select id="modal-stage" onchange="selectedStage = parseInt(this.value)">
+        ${stageOptions}
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>추가 지시사항 (선택)</label>
+      <textarea id="modal-extra" placeholder="예: 칭찬 위주로, 다음 미션 제안 포함 등">${s.extra_instruction || ''}</textarea>
+    </div>
+
+    <button class="btn btn-primary" id="generate-btn" onclick="generateFeedback()" ${isSent ? 'disabled' : ''}>
+      ✨ 피드백 생성
+    </button>
+
+    <div id="feedback-section" style="${feedbackValue ? '' : 'display:none'}; margin-top:20px;">
+      <div class="divider"></div>
+      <div class="form-group">
+        <label>생성된 피드백 (수정 가능)</label>
+        <textarea class="feedback-area" id="modal-feedback" rows="6">${feedbackValue}</textarea>
+      </div>
+      <button class="btn btn-success" id="approve-btn" onclick="approveFeedback()" ${isSent ? 'disabled' : ''}>
+        ✅ 승인 후 카카오 전송
+      </button>
+    </div>
+  `;
+}
+
+function selectModalLevel(btn) {
+  document.querySelectorAll('#modal-level-btns .level-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  selectedLevel = btn.dataset.level;
+
+  // Update stage dropdown
+  const stages = LEVELS[selectedLevel]?.stages || {};
+  const select = document.getElementById('modal-stage');
+  select.innerHTML = Object.entries(stages)
+    .map(([num, title]) => `<option value="${num}">${num}단계 - ${title}</option>`)
+    .join('');
+  selectedStage = 1;
+}
+
+// ===== Generate Feedback =====
+async function generateFeedback() {
+  const btn = document.getElementById('generate-btn');
+  const extra = document.getElementById('modal-extra')?.value || '';
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> 생성 중...';
+
+  try {
+    const result = await api(`/admin/submissions/${currentSubmissionId}/generate`, {
+      method: 'POST',
+      body: JSON.stringify({
+        level: selectedLevel,
+        stage: selectedStage,
+        extra_instruction: extra,
+      }),
+    });
+
+    const feedbackSection = document.getElementById('feedback-section');
+    const feedbackArea = document.getElementById('modal-feedback');
+    feedbackSection.style.display = '';
+    feedbackArea.value = result.feedback_draft;
+    toast('피드백이 생성되었어요! 확인 후 전송해 주세요 😊');
+  } catch (e) {
+    toast('❌ 오류: ' + e.message, 4000);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '✨ 피드백 생성';
+  }
+}
+
+// ===== Approve & Send =====
+async function approveFeedback() {
+  const btn = document.getElementById('approve-btn');
+  const feedbackText = document.getElementById('modal-feedback')?.value || '';
+
+  if (!feedbackText.trim()) {
+    toast('피드백 내용을 입력해 주세요.', 2000);
+    return;
+  }
+
+  if (!confirm('이 피드백을 카카오로 전송하시겠어요?')) return;
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> 전송 중...';
+
+  try {
+    const result = await api(`/admin/submissions/${currentSubmissionId}/approve`, {
+      method: 'PUT',
+      body: JSON.stringify({ feedback_text: feedbackText }),
+    });
+    toast('✅ 피드백이 전송되었습니다!');
+    closeModal('submission-modal');
+    loadPending();
+  } catch (e) {
+    toast('❌ 전송 실패: ' + e.message, 4000);
+    btn.disabled = false;
+    btn.innerHTML = '✅ 승인 후 카카오 전송';
+  }
+}
+
+// ===== History Tab =====
+async function loadHistory() {
+  const container = document.getElementById('history-list');
+  container.innerHTML = '<div class="loading">불러오는 중...</div>';
+  try {
+    const submissions = await api('/admin/submissions');
+    if (submissions.length === 0) {
+      container.innerHTML = `<div class="empty"><div class="icon">📂</div><p>이력이 없습니다</p></div>`;
+      return;
+    }
+
+    // Group by parent
+    const byParent = {};
+    submissions.forEach(s => {
+      const key = s.parent ? s.parent.id : 'unknown';
+      if (!byParent[key]) byParent[key] = { parent: s.parent, submissions: [] };
+      byParent[key].submissions.push(s);
+    });
+
+    container.innerHTML = Object.values(byParent).map(group => {
+      const parent = group.parent;
+      const name = parent ? parent.child_name : '미등록';
+      const itemsHtml = group.submissions.map(s => `
+        <div class="history-item">
+          <div class="history-meta">
+            <span class="history-level">${s.level || '-'} ${s.stage ? s.stage+'단계' : ''}</span>
+            <span style="font-size:12px; color:var(--text-muted)">${formatDate(s.created_at)}</span>
+          </div>
+          <div style="margin-bottom:4px">
+            <span class="status-badge status-${s.status}">${statusLabel(s.status)}</span>
+          </div>
+          ${s.feedback_draft
+            ? `<div class="history-feedback truncated">${s.feedback_draft}</div>`
+            : `<div style="font-size:12px; color:var(--text-muted)">피드백 없음</div>`
+          }
+        </div>
+      `).join('');
+
+      return `
+        <div class="card">
+          <div style="padding:12px 16px 4px; font-weight:700; font-size:15px;">${name}</div>
+          ${itemsHtml}
+        </div>`;
+    }).join('');
+  } catch (e) {
+    container.innerHTML = `<div class="empty"><div class="icon">⚠️</div><p>${e.message}</p></div>`;
+  }
+}
+
+// ===== Parents Tab =====
+async function loadParents() {
+  const container = document.getElementById('parents-list');
+  container.innerHTML = '<div class="loading">불러오는 중...</div>';
+  try {
+    const parents = await api('/admin/parents');
+    if (parents.length === 0) {
+      container.innerHTML = `
+        <div class="empty">
+          <div class="icon">👨‍👩‍👧</div>
+          <p>등록된 학부모가 없어요.<br>+ 추가 버튼으로 등록해 주세요.</p>
+        </div>`;
+      return;
+    }
+    container.innerHTML = `
+      <div class="card">
+        ${parents.map(p => `
+          <div class="parent-item" onclick="openParentHistory(${p.id}, '${p.child_name}')">
+            <div>
+              <div class="parent-name">${p.child_name}</div>
+              <div class="parent-sub">${p.level} · ${p.child_age ? p.child_age+'세' : '나이 미입력'} · 제출 ${p.submission_count}건</div>
+              <div class="parent-sub" style="font-size:11px; margin-top:2px; color:#aaa">${p.kakao_user_id}</div>
+            </div>
+            <span style="color:var(--text-muted); font-size:18px;">›</span>
+          </div>
+        `).join('')}
+      </div>`;
+  } catch (e) {
+    container.innerHTML = `<div class="empty"><div class="icon">⚠️</div><p>${e.message}</p></div>`;
+  }
+}
+
+function openAddParent() {
+  document.getElementById('parent-modal-title').textContent = '학부모 추가';
+  document.getElementById('parent-form').reset();
+  document.getElementById('p-level').value = '표현력';
+  document.querySelectorAll('#parent-form .level-btn').forEach((b, i) => {
+    b.classList.toggle('active', i === 0);
+  });
+  document.getElementById('p-kakao-id').removeAttribute('readonly');
+  openModal('parent-modal');
+}
+
+function selectParentLevel(btn) {
+  document.querySelectorAll('#parent-form .level-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('p-level').value = btn.dataset.level;
+}
+
+async function saveParent(e) {
+  e.preventDefault();
+  const btn = document.getElementById('parent-save-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>';
+
+  try {
+    await api('/admin/parents', {
+      method: 'POST',
+      body: JSON.stringify({
+        kakao_user_id: document.getElementById('p-kakao-id').value.trim(),
+        child_name: document.getElementById('p-child-name').value.trim(),
+        child_age: parseInt(document.getElementById('p-child-age').value) || null,
+        level: document.getElementById('p-level').value,
+      }),
+    });
+    toast('저장되었습니다 ✅');
+    closeModal('parent-modal');
+    loadParents();
+  } catch (e) {
+    toast('❌ 오류: ' + e.message, 4000);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '저장';
+  }
+}
+
+async function openParentHistory(parentId, childName) {
+  document.getElementById('parent-history-title').textContent = `${childName} 학습 이력`;
+  document.getElementById('parent-history-body').innerHTML = '<div class="loading">불러오는 중...</div>';
+  openModal('parent-history-modal');
+
+  try {
+    const data = await api(`/admin/parents/${parentId}/history`);
+    const subs = data.submissions;
+
+    if (subs.length === 0) {
+      document.getElementById('parent-history-body').innerHTML =
+        '<div class="empty"><div class="icon">📂</div><p>제출 이력이 없습니다</p></div>';
+      return;
+    }
+
+    document.getElementById('parent-history-body').innerHTML = `
+      <div style="background:var(--bg); border-radius:10px; padding:12px 14px; margin-bottom:16px;">
+        <div class="child-info-row">
+          <span class="label">이름</span><span class="value">${data.parent.child_name}</span>
+        </div>
+        <div class="child-info-row">
+          <span class="label">레벨</span><span class="value">${data.parent.level}</span>
+        </div>
+        <div class="child-info-row">
+          <span class="label">제출 수</span><span class="value">${subs.length}건</span>
+        </div>
+      </div>
+      <div class="card">
+        ${subs.map(s => `
+          <div class="history-item" onclick="openSubmission(${s.id}); closeModal('parent-history-modal');" style="cursor:pointer">
+            <div class="history-meta">
+              <span class="history-level">${s.level || '-'} ${s.stage ? s.stage+'단계' : ''}</span>
+              <span style="font-size:12px; color:var(--text-muted)">${formatDate(s.created_at)}</span>
+            </div>
+            <div style="margin-bottom:6px">
+              <span class="status-badge status-${s.status}">${statusLabel(s.status)}</span>
+            </div>
+            ${s.feedback_draft
+              ? `<div class="history-feedback truncated">${s.feedback_draft}</div>`
+              : `<div style="font-size:12px; color:var(--text-muted)">피드백 없음</div>`
+            }
+          </div>
+        `).join('')}
+      </div>`;
+  } catch (err) {
+    document.getElementById('parent-history-body').innerHTML =
+      `<div class="empty"><div class="icon">⚠️</div><p>${err.message}</p></div>`;
+  }
+}
+
+// ===== Init =====
+document.addEventListener('DOMContentLoaded', () => {
+  loadPending();
+  // Auto-refresh pending every 60 seconds
+  setInterval(() => {
+    const pendingPanel = document.getElementById('panel-pending');
+    if (pendingPanel.classList.contains('active')) loadPending();
+  }, 60000);
+});
+</script>
+</body>
+</html>

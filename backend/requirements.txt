@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+sqlalchemy
+anthropic
+python-multipart
+python-dotenv
+requests
+pillow
+aiofiles
+httpx
