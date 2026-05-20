@@ -255,6 +255,7 @@ def list_parents(db: Session = Depends(get_db)):
         {
             "id": p.id,
             "kakao_user_id": p.kakao_user_id,
+            "phone_number": p.phone_number,
             "child_name": p.child_name,
             "child_age": p.child_age,
             "level": p.level,

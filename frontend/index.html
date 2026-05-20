@@ -525,6 +525,10 @@
           <input type="text" id="p-child-name" placeholder="예: 민준" required />
         </div>
         <div class="form-group">
+          <label>전화번호 <small style="color:#6b8878">(친구톡 발송용)</small></label>
+          <input type="tel" id="p-phone" placeholder="예: 01012345678" />
+        </div>
+        <div class="form-group">
           <label>아이 나이</label>
           <input type="number" id="p-child-age" placeholder="예: 8" min="5" max="15" />
         </div>
@@ -970,7 +974,7 @@ async function loadParents() {
             <div>
               <div class="parent-name">${p.child_name}</div>
               <div class="parent-sub">${p.level} · ${p.child_age ? p.child_age+'세' : '나이 미입력'} · 제출 ${p.submission_count}건</div>
-              <div class="parent-sub" style="font-size:11px; margin-top:2px; color:#aaa">${p.kakao_user_id}</div>
+              <div class="parent-sub" style="font-size:11px; margin-top:2px; color:#aaa">${p.phone_number || '전화번호 미등록'} · ${p.kakao_user_id}</div>
             </div>
             <span style="color:var(--text-muted); font-size:18px;">›</span>
           </div>
@@ -1009,6 +1013,7 @@ async function saveParent(e) {
       method: 'POST',
       body: JSON.stringify({
         kakao_user_id: document.getElementById('p-kakao-id').value.trim(),
+        phone_number: document.getElementById('p-phone').value.trim() || null,
         child_name: document.getElementById('p-child-name').value.trim(),
         child_age: parseInt(document.getElementById('p-child-age').value) || null,
         level: document.getElementById('p-level').value,
