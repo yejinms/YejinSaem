@@ -53,12 +53,9 @@ def send_message(kakao_user_id: str, message_text: str) -> dict:
         "message": {
             "to": phone_number,
             "from": sender_phone,
-            "type": "FT",  # 친구톡 텍스트
+            "type": "CTA",  # 친구톡 텍스트
             "kakaoOptions": {
                 "senderKey": sender_key,
-                "templateCode": "",  # 자유 양식 친구톡은 템플릿 코드 불필요
-                "buttonName": "",
-                "buttonUrl": "",
                 "disableSms": False,  # 친구톡 실패 시 SMS로 대체 발송
             },
             "text": message_text,
