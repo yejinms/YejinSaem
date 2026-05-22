@@ -19,6 +19,7 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 from database import Parent, Submission, get_db
 from services.claude_service import generate_feedback
 from services.kakao_service import send_feedback_message
+from services.parent_match import is_pending_kakao_user_id, pending_kakao_user_id
 from validation import (
     normalize_phone_number,
     read_validated_upload,
@@ -47,8 +48,8 @@ class ApproveRequest(BaseModel):
 
 
 class ParentCreate(BaseModel):
-    kakao_user_id: str
-    phone_number: Optional[str] = None
+    kakao_user_id: Optional[str] = None
+    phone_number: str
     child_name: str
     child_age: Optional[int] = None
     level: str = "표현력"
@@ -383,27 +384,29 @@ def list_parents(db: Session = Depends(get_db)):
 
 @router.post("/parents", status_code=status.HTTP_201_CREATED)
 def create_or_update_parent(body: ParentCreate, db: Session = Depends(get_db)):
-    """Create a new parent or update existing one by kakao_user_id."""
+    """Create or update a parent by phone number (Kakao channel links on first chat)."""
     validate_level(body.level)
     validate_child_age(body.child_age)
-    phone_number = normalize_phone_number(body.phone_number)
+    phone_number = normalize_phone_number(body.phone_number, required=True)
 
-    existing = db.query(Parent).filter(Parent.kakao_user_id == body.kakao_user_id).first()
+    manual_kakao = (body.kakao_user_id or "").strip()
+    existing = db.query(Parent).filter(Parent.phone_number == phone_number).first()
 
     if existing:
-        # Update existing parent
         existing.child_name = body.child_name
         existing.child_age = body.child_age
         existing.phone_number = phone_number
         existing.level = body.level
+        if manual_kakao:
+            existing.kakao_user_id = manual_kakao
         db.commit()
         db.refresh(existing)
         parent = existing
         created = False
     else:
-        # Create new parent
+        kakao_user_id = manual_kakao or pending_kakao_user_id(phone_number)
         parent = Parent(
-            kakao_user_id=body.kakao_user_id,
+            kakao_user_id=kakao_user_id,
             phone_number=phone_number,
             child_name=body.child_name,
             child_age=body.child_age,
@@ -416,6 +419,7 @@ def create_or_update_parent(body: ParentCreate, db: Session = Depends(get_db)):
 
     response = serialize_parent(parent)
     response["created"] = created
+    response["kakao_linked"] = not is_pending_kakao_user_id(parent.kakao_user_id)
     return response
 
 

@@ -23,14 +23,22 @@ def configured_env(name: str) -> str | None:
     return value
 
 
-def normalize_phone_number(value: str | None) -> str | None:
+def normalize_phone_number(value: str | None, *, required: bool = False) -> str | None:
     if value is None:
+        if required:
+            raise HTTPException(status_code=400, detail="전화번호를 입력해주세요.")
         return None
 
     normalized = value.replace("-", "").replace(" ", "").strip()
-    if normalized and not normalized.isdigit():
+    if not normalized:
+        if required:
+            raise HTTPException(status_code=400, detail="전화번호를 입력해주세요.")
+        return None
+    if not normalized.isdigit():
         raise HTTPException(status_code=400, detail="전화번호는 숫자만 입력해주세요.")
-    return normalized or None
+    if not (len(normalized) == 11 and normalized.startswith("010")):
+        raise HTTPException(status_code=400, detail="휴대폰 번호는 010으로 시작하는 11자리로 입력해주세요.")
+    return normalized
 
 
 def validate_level(level: str) -> None:

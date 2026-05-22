@@ -76,7 +76,6 @@ def test_parent_create_and_update_phone_number():
     created = client.post(
         "/admin/parents",
         json={
-            "kakao_user_id": "kakao-parent",
             "phone_number": "010-1111-2222",
             "child_name": "서연",
             "child_age": 9,
@@ -86,6 +85,8 @@ def test_parent_create_and_update_phone_number():
     assert created.status_code == 201
     parent_id = created.json()["id"]
     assert created.json()["phone_number"] == "01011112222"
+    assert created.json()["kakao_user_id"] == "pending:01011112222"
+    assert created.json()["kakao_linked"] is False
 
     updated = client.put(
         f"/admin/parents/{parent_id}",
@@ -111,7 +112,28 @@ def test_kakao_webhook_unregistered_user_does_not_create_submission():
     res = client.post("/kakao/webhook", json=kakao_payload("unknown", "https://example.com/a.jpg"))
     assert res.status_code == 200
     assert submission_count() == 0
-    assert "등록된 학부모 정보가 없어요" in res.json()["template"]["outputs"][0]["simpleText"]["text"]
+    assert "휴대폰 번호" in res.json()["template"]["outputs"][0]["simpleText"]["text"]
+
+
+def test_kakao_webhook_links_parent_by_phone_then_accepts_image(monkeypatch):
+    create_parent("pending:01099998888", phone_number="01099998888")
+
+    async def fake_download_image(url):
+        return b"image-bytes", "image/jpeg"
+
+    monkeypatch.setattr(kakao_router, "download_image", fake_download_image)
+
+    link_res = client.post("/kakao/webhook", json=kakao_payload("real-bot-user", "01099998888"))
+    assert link_res.status_code == 200
+    assert "연결되었어요" in link_res.json()["template"]["outputs"][0]["simpleText"]["text"]
+    assert submission_count() == 0
+
+    image_res = client.post(
+        "/kakao/webhook",
+        json=kakao_payload("real-bot-user", "https://example.com/a.jpg"),
+    )
+    assert image_res.status_code == 200
+    assert submission_count() == 1
 
 
 def test_kakao_webhook_registered_text_only_does_not_create_submission():
