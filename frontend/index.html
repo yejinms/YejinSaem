@@ -475,6 +475,25 @@
       white-space: nowrap;
     }
 
+    .phone-warning-card {
+      background: #fff8e6;
+      border: 1px solid #f0d78c;
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 16px;
+      font-size: 13px;
+      line-height: 1.5;
+      color: #6b4e00;
+    }
+    .phone-warning-card strong {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 14px;
+    }
+    .phone-warning-card .btn {
+      margin-top: 10px;
+    }
+
     /* ===== Toast ===== */
     .toast {
       position: fixed;
@@ -1102,14 +1121,29 @@ function renderSubmissionModal(s) {
   const isSent = s.status === 'sent';
   const isApproved = s.status === 'approved';
   const sendButtonText = isApproved ? '다시 전송' : '승인 후 카카오 전송';
+  const needsPhone = parent && !parent.phone_number;
+  const parentId = parent ? parent.id : null;
 
   document.getElementById('submission-modal-body').innerHTML = `
     ${photoHtml}
 
+    ${needsPhone ? `
+    <div class="phone-warning-card">
+      <strong>친구톡 발송을 위해 전화번호 등록이 필요해요</strong>
+      채널에서 온 사진·카카오 연결은 이미 되어 있어요. 아래에서 <strong>전화번호</strong>와 <strong>내부 관리명</strong>만 넣으면
+      「승인 후 카카오 전송」이 가능합니다. (카카오 연결 ID는 수정하지 않아도 됩니다)
+      <button type="button" class="btn btn-outline btn-sm" onclick="openEditParentFromSubmission(${parentId})">전화번호 등록하기</button>
+    </div>
+    ` : ''}
+
     <div class="child-info-card">
       <div class="child-info-row">
         <span class="label">내부 관리명</span>
-        <span class="value">${childName}</span>
+        <span class="value">${escapeHtml(childName)}</span>
+      </div>
+      <div class="child-info-row">
+        <span class="label">전화번호</span>
+        <span class="value">${parent && parent.phone_number ? escapeHtml(parent.phone_number) : '미등록 (친구톡 불가)'}</span>
       </div>
       <div class="child-info-row">
         <span class="label">나이</span>
@@ -1157,7 +1191,7 @@ function renderSubmissionModal(s) {
         <textarea class="feedback-area" id="modal-feedback" rows="6">${escapeHtml(feedbackValue)}</textarea>
       </div>
       <div class="feedback-actions">
-        <button class="btn btn-success btn-send-kakao" id="approve-btn" data-retry="${isApproved ? 'true' : 'false'}" onclick="approveFeedback()" ${isSent ? 'disabled' : ''}>
+        <button class="btn btn-success btn-send-kakao" id="approve-btn" data-retry="${isApproved ? 'true' : 'false'}" onclick="approveFeedback()" ${isSent || needsPhone ? 'disabled' : ''} title="${needsPhone ? '전화번호 등록 후 카카오 전송 가능' : ''}">
           ${sendButtonText}
         </button>
         <button class="btn btn-outline btn-mark-sent" id="mark-sent-btn" onclick="markSentManually()" ${isSent ? 'disabled' : ''} type="button">
@@ -1400,7 +1434,7 @@ async function loadParents() {
             <div>
               <div class="parent-name">${p.child_name}</div>
               <div class="parent-sub">${p.level} · ${p.child_age ? p.child_age+'세' : '나이 미입력'} · 제출 ${p.submission_count}건</div>
-              <div class="parent-sub" style="font-size:11px; margin-top:2px; color:#aaa">${p.phone_number || '전화번호 미등록'} · ${(p.kakao_user_id || '').startsWith('pending:') ? '채널 ID 미입력' : '채널 연결됨'}</div>
+              <div class="parent-sub" style="font-size:11px; margin-top:2px; color:${p.phone_number ? '#aaa' : '#b45309'}">${p.phone_number || '⚠ 전화번호 미등록 — 친구톡 불가'} · ${(p.kakao_user_id || '').startsWith('pending:') ? '채널 ID 미입력' : '채널 연결됨'}</div>
             </div>
             <button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); openEditParent(${p.id})">수정</button>
           </div>
@@ -1421,6 +1455,10 @@ function openAddParent() {
   });
   document.getElementById('p-kakao-id').value = '';
   openModal('parent-modal');
+}
+
+function openEditParentFromSubmission(parentId) {
+  openEditParent(parentId);
 }
 
 async function openEditParent(parentId) {
@@ -1475,6 +1513,10 @@ async function saveParent(e) {
     closeModal('parent-modal');
     loadParents();
     loadUploadParents();
+    if (currentSubmissionId && document.getElementById('submission-modal').classList.contains('open')) {
+      const s = await api(`/admin/submissions/${currentSubmissionId}`);
+      renderSubmissionModal(s);
+    }
   } catch (e) {
     toast('❌ 오류: ' + e.message, 4000);
   } finally {
