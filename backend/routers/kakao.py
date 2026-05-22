@@ -144,12 +144,22 @@ def extract_image_url(body: dict) -> str | None:
     return _extract_image_url_from_obj(body)
 
 
-@router.post("/webhook", dependencies=[Depends(verify_kakao_secret_header)])
+@router.api_route(
+    "/webhook",
+    methods=["GET", "HEAD", "POST"],
+    dependencies=[Depends(verify_kakao_secret_header)],
+)
 async def kakao_webhook(request: Request, db: Session = Depends(get_db)):
     """
     Receive webhook from Kakao i Open Builder.
     Handles incoming messages (especially image uploads) from parents.
     """
+    if request.method == "HEAD":
+        return Response(status_code=200)
+    if request.method == "GET":
+        # Open Builder may probe the URL with GET before POST skill tests.
+        return _skill_json("스킬 서버 연결이 확인되었습니다.")
+
     try:
         body = await request.json()
     except Exception:
