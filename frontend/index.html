@@ -211,6 +211,29 @@
       width: auto;
     }
 
+    .btn-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .btn-row .btn { flex: 1; }
+
+    .upload-card {
+      margin-bottom: 16px;
+      border: 2px dashed var(--border);
+      background: var(--surface);
+    }
+    .upload-card .hint {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 6px;
+    }
+    input[type="file"] {
+      width: 100%;
+      font-size: 13px;
+      padding: 8px 0;
+    }
+
     /* ===== Form Elements ===== */
     label {
       display: block;
@@ -461,6 +484,25 @@
 
 <!-- Tab: Pending Submissions -->
 <div class="tab-panel active" id="panel-pending">
+  <div class="card upload-card">
+    <div class="card-body">
+      <div class="section-title" style="margin-top:0">새 제출 (로컬용)</div>
+      <div class="form-group" style="margin-bottom:10px">
+        <label>학부모 선택</label>
+        <select id="upload-parent-select">
+          <option value="">학부모를 먼저 등록해 주세요</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:10px">
+        <label>워크시트 사진</label>
+        <input type="file" id="upload-photo-input" accept="image/*" />
+      </div>
+      <button class="btn btn-primary btn-sm" type="button" onclick="uploadSubmission()" id="upload-btn" style="width:100%">
+        사진 업로드
+      </button>
+      <p class="hint">카톡으로 받은 사진을 올린 뒤 피드백을 생성하고, 복사해서 직접 보내세요.</p>
+    </div>
+  </div>
   <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
     <div class="section-title" style="margin:0">대기 중인 피드백</div>
     <button class="btn btn-outline btn-sm" onclick="loadPending()">새로고침</button>
@@ -645,15 +687,83 @@ function toast(msg, duration = 2500) {
 }
 
 async function api(path, opts = {}) {
-  const res = await fetch(API_BASE + path, {
-    headers: { 'Content-Type': 'application/json' },
-    ...opts,
-  });
+  const headers = { ...(opts.headers || {}) };
+  if (opts.body && typeof opts.body === 'string') {
+    headers['Content-Type'] = 'application/json';
+  }
+  const res = await fetch(API_BASE + path, { ...opts, headers });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(err.detail || '오류가 발생했습니다.');
+    const detail = err.detail;
+    const msg = Array.isArray(detail)
+      ? detail.map(d => d.msg || JSON.stringify(d)).join(', ')
+      : (detail || res.statusText);
+    throw new Error(msg || '오류가 발생했습니다.');
   }
   return res.json();
+}
+
+async function refreshUploadParentSelect() {
+  const sel = document.getElementById('upload-parent-select');
+  if (!sel) return;
+  try {
+    const parents = await api('/admin/parents');
+    if (parents.length === 0) {
+      sel.innerHTML = '<option value="">학부모를 먼저 등록해 주세요</option>';
+      return;
+    }
+    sel.innerHTML = parents.map(p =>
+      `<option value="${p.id}">${p.child_name} · ${p.level}</option>`
+    ).join('');
+  } catch (e) {
+    sel.innerHTML = '<option value="">불러오기 실패</option>';
+  }
+}
+
+async function uploadSubmission() {
+  const parentId = document.getElementById('upload-parent-select')?.value;
+  const fileInput = document.getElementById('upload-photo-input');
+  const btn = document.getElementById('upload-btn');
+  if (!parentId) { toast('학부모를 선택해 주세요.'); return; }
+  const file = fileInput?.files?.[0];
+  if (!file) { toast('사진을 선택해 주세요.'); return; }
+  const form = new FormData();
+  form.append('photo', file);
+  btn.disabled = true;
+  btn.textContent = '업로드 중...';
+  try {
+    const res = await fetch(
+      `${API_BASE}/admin/submissions/upload?parent_id=${parentId}`,
+      { method: 'POST', body: form }
+    );
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || '업로드 실패');
+    }
+    await res.json();
+    fileInput.value = '';
+    toast('업로드 완료! 피드백을 생성해 주세요.');
+    loadPending();
+  } catch (e) {
+    toast('❌ ' + e.message, 4000);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '사진 업로드';
+  }
+}
+
+async function copyFeedback() {
+  const text = document.getElementById('modal-feedback')?.value?.trim() || '';
+  if (!text) { toast('복사할 피드백이 없어요.'); return; }
+  try {
+    await navigator.clipboard.writeText(text);
+    toast('클립보드에 복사했어요!');
+  } catch (e) {
+    const ta = document.getElementById('modal-feedback');
+    ta.select();
+    document.execCommand('copy');
+    toast('복사했어요!');
+  }
 }
 
 // ===== Tab Switching =====
@@ -663,8 +773,10 @@ function switchTab(tab) {
   document.getElementById('tab-' + tab).classList.add('active');
   document.getElementById('panel-' + tab).classList.add('active');
 
-  if (tab === 'pending') loadPending();
-  else if (tab === 'history') loadHistory();
+  if (tab === 'pending') {
+    refreshUploadParentSelect();
+    loadPending();
+  } else if (tab === 'history') loadHistory();
   else if (tab === 'parents') loadParents();
 }
 
@@ -823,14 +935,14 @@ function renderSubmissionModal(s) {
         <textarea class="feedback-area" id="modal-feedback" rows="6">${feedbackValue}</textarea>
       </div>
       <div class="btn-row">
-        <button type="button" class="btn btn-outline" id="copy-btn" onclick="copyFeedback()">
+        <button type="button" class="btn btn-outline" onclick="copyFeedback()">
           복사하기
         </button>
         <button type="button" class="btn btn-success" id="approve-btn" onclick="approveFeedback()" ${isSent ? 'disabled' : ''}>
           카카오 전송
         </button>
       </div>
-      <p class="hint" style="margin-top:10px">로컬 사용: 복사 후 카톡에 붙여넣기. 자동 전송은 오른쪽 버튼.</p>
+      <p class="hint" style="margin-top:10px">로컬: 복사 후 카톡 붙여넣기 · 자동 전송은 오른쪽</p>
     </div>
   `;
 }
@@ -1028,6 +1140,7 @@ async function saveParent(e) {
     toast('저장되었습니다 ✅');
     closeModal('parent-modal');
     loadParents();
+    refreshUploadParentSelect();
   } catch (e) {
     toast('❌ 오류: ' + e.message, 4000);
   } finally {
@@ -1088,6 +1201,7 @@ async function openParentHistory(parentId, childName) {
 
 // ===== Init =====
 document.addEventListener('DOMContentLoaded', () => {
+  refreshUploadParentSelect();
   loadPending();
   // Auto-refresh pending every 60 seconds
   setInterval(() => {
