@@ -16,6 +16,7 @@ from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from database import Submission, get_db
+from routers.admin import serialize_photo_paths
 from services.kakao_service import build_kakao_response
 from services.parent_match import CHANNEL_GREETING, resolve_parent
 from validation import (
@@ -150,50 +151,79 @@ def _urls_from_secureimage_value(value: str) -> list[str]:
     return re.findall(r"https?://[^\s\),\"']+", text)
 
 
-def _extract_openbuilder_image_url(body: dict) -> str | None:
+def _dedupe_urls(urls: list[str]) -> list[str]:
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for url in urls:
+        if url not in seen:
+            seen.add(url)
+            ordered.append(url)
+    return ordered
+
+
+def _extract_openbuilder_image_urls(body: dict) -> list[str]:
+    urls: list[str] = []
     action = body.get("action") or {}
     detail_params = action.get("detailParams") or {}
     secure = detail_params.get("secureimage") or {}
     if isinstance(secure, dict):
         for key in ("origin", "value"):
-            for url in _urls_from_secureimage_value(str(secure.get(key) or "")):
-                return url
+            urls.extend(_urls_from_secureimage_value(str(secure.get(key) or "")))
 
     params = action.get("params") or {}
-    for url in _urls_from_secureimage_value(str(params.get("secureimage") or "")):
-        return url
+    urls.extend(_urls_from_secureimage_value(str(params.get("secureimage") or "")))
 
     user_params = (body.get("userRequest") or {}).get("params") or {}
     media = user_params.get("media") or {}
     if isinstance(media, dict):
         media_url = media.get("url")
         if isinstance(media_url, str) and media_url.startswith("http"):
-            return media_url
+            urls.append(media_url)
 
-    return None
+    return _dedupe_urls(urls)
 
 
-def extract_image_url(body: dict) -> str | None:
+def extract_image_urls(body: dict) -> list[str]:
     """
-    Try to extract an image URL from various Kakao webhook payload formats.
-    Kakao Open Builder and related message flows can place image URLs in
-    attachment payloads, action detailParams, or nested params objects.
+    Collect image URLs from Kakao Open Builder payloads (supports multi-image secureimage).
     """
-    found = _extract_openbuilder_image_url(body)
-    if found:
-        return found
+    urls = _extract_openbuilder_image_urls(body)
+    if urls:
+        return urls
 
-    prioritized_roots = [
+    for root in (
         body.get("userRequest", {}),
         body.get("action", {}),
         body.get("contexts", []),
-    ]
-    for root in prioritized_roots:
+        body,
+    ):
         found = _extract_image_url_from_obj(root)
         if found:
-            return found
+            return [found]
 
-    return _extract_image_url_from_obj(body)
+    return []
+
+
+def extract_image_url(body: dict) -> str | None:
+    """First image URL, if any (backward compatible)."""
+    urls = extract_image_urls(body)
+    return urls[0] if urls else None
+
+
+async def save_uploaded_image(url: str) -> str | None:
+    downloaded = await download_image(url)
+    if not downloaded:
+        return None
+
+    image_content, content_type = downloaded
+    validate_image_content(image_content, content_type)
+
+    ext = image_extension_from_url_or_type(url, content_type)
+    filename = f"{uuid.uuid4()}{ext}"
+    dest_path = UPLOAD_DIR / filename
+    async with aiofiles.open(dest_path, "wb") as f:
+        await f.write(image_content)
+    return str(dest_path)
 
 
 @router.api_route(
@@ -254,11 +284,11 @@ async def _handle_kakao_webhook(body: dict, db: Session) -> Response:
         return _skill_json("메시지를 처리할 수 없었어요. 다시 시도해 주세요.")
 
     utterance = body.get("userRequest", {}).get("utterance", "") or ""
-    image_url = extract_image_url(body)
+    image_urls = extract_image_urls(body)
     parent = resolve_parent(db, kakao_user_id)
 
     if not parent:
-        if image_url:
+        if image_urls:
             logger.warning(
                 "Kakao image from unlinked user (set botUserKey in admin): bot_user_key=%s",
                 kakao_user_id,
@@ -271,36 +301,33 @@ async def _handle_kakao_webhook(body: dict, db: Session) -> Response:
             )
         return _skill_json(CHANNEL_GREETING)
 
-    if not image_url:
+    if not image_urls:
         logger.info(f"Text message received from {kakao_user_id}: {utterance}")
         return _skill_json(CHANNEL_GREETING)
 
-    downloaded = await download_image(image_url)
-    if not downloaded:
-        logger.warning(f"Could not download image from {image_url}")
+    saved_paths: list[str] = []
+    for image_url in image_urls:
+        try:
+            path = await save_uploaded_image(image_url)
+            if path:
+                saved_paths.append(path)
+                logger.info("Image saved to %s", path)
+        except HTTPException as e:
+            logger.warning(
+                "Rejected Kakao image from %s (%s): %s",
+                kakao_user_id,
+                image_url,
+                e.detail,
+            )
+        except Exception:
+            logger.exception("Failed to save Kakao image from %s", image_url)
+
+    if not saved_paths:
         return _skill_json("사진을 불러오지 못했어요. 다시 보내주세요.")
-
-    image_content, content_type = downloaded
-    try:
-        validate_image_content(image_content, content_type)
-    except HTTPException as e:
-        logger.warning(f"Rejected Kakao image from {kakao_user_id}: {e.detail}")
-        return _skill_json(
-            "지원하지 않는 이미지 형식이에요. JPG, PNG, GIF, WebP 사진으로 다시 보내주세요."
-        )
-
-    ext = image_extension_from_url_or_type(image_url, content_type)
-    filename = f"{uuid.uuid4()}{ext}"
-    dest_path = UPLOAD_DIR / filename
-    async with aiofiles.open(dest_path, "wb") as f:
-        await f.write(image_content)
-
-    photo_path = str(dest_path)
-    logger.info(f"Image saved to {photo_path}")
 
     submission = Submission(
         parent_id=parent.id,
-        photo_path=photo_path,
+        photo_path=serialize_photo_paths(saved_paths),
         level=parent.level,
         stage=None,
         extra_instruction=None,
@@ -311,5 +338,17 @@ async def _handle_kakao_webhook(body: dict, db: Session) -> Response:
     db.commit()
     db.refresh(submission)
 
-    logger.info(f"Created submission #{submission.id} for kakao_user_id={kakao_user_id}")
-    return _skill_json("사진을 받았어요! 선생님 확인 후 평균 3시간 이내에 상세한 피드백을 전달드릴게요. 감사합니다 :)")
+    logger.info(
+        "Created submission #%s for kakao_user_id=%s with %s image(s)",
+        submission.id,
+        kakao_user_id,
+        len(saved_paths),
+    )
+    if len(saved_paths) == 1:
+        reply = "사진을 받았어요! 선생님 확인 후 평균 3시간 이내에 상세한 피드백을 전달드릴게요. 감사합니다 :)"
+    else:
+        reply = (
+            f"사진 {len(saved_paths)}장을 받았어요! "
+            "선생님 확인 후 평균 3시간 이내에 상세한 피드백을 전달드릴게요. 감사합니다 :)"
+        )
+    return _skill_json(reply)

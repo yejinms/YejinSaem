@@ -225,6 +225,42 @@ def test_kakao_webhook_secureimage_plugin_creates_pending_submission(monkeypatch
     assert submission_count() == 1
 
 
+def test_kakao_webhook_secureimage_multiple_images_in_one_payload(monkeypatch):
+    create_parent("kakao-multi", phone_number="01066665555")
+
+    downloaded_urls: list[str] = []
+
+    async def fake_download_image(url):
+        downloaded_urls.append(url)
+        return b"image-bytes", "image/jpeg"
+
+    monkeypatch.setattr(kakao_router, "download_image", fake_download_image)
+    url_a = "http://secure.kakaocdn.net/dna/test/a.jpg?credential=abc"
+    url_b = "http://secure.kakaocdn.net/dna/test/b.jpg?credential=def"
+    res = client.post(
+        "/kakao/webhook",
+        json={
+            "userRequest": {"user": {"id": "kakao-multi"}, "utterance": ""},
+            "action": {
+                "detailParams": {
+                    "secureimage": {
+                        "origin": f"List({url_a}, {url_b})",
+                    }
+                },
+            },
+        },
+    )
+    assert res.status_code == 200
+    assert "2장" in res.json()["template"]["outputs"][0]["simpleText"]["text"]
+    assert len(downloaded_urls) == 2
+
+    db = SessionLocal()
+    submission = db.query(Submission).one()
+    paths = admin_router.get_submission_photo_paths(submission)
+    db.close()
+    assert len(paths) == 2
+
+
 def test_kakao_webhook_registered_image_attachment_creates_pending_submission(monkeypatch):
     create_parent("kakao-attachment")
 
