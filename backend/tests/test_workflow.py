@@ -139,6 +139,38 @@ def test_kakao_webhook_registered_image_creates_pending_submission(monkeypatch):
     assert submission.photo_path.endswith(".jpg")
 
 
+def test_kakao_webhook_registered_image_attachment_creates_pending_submission(monkeypatch):
+    create_parent("kakao-attachment")
+
+    async def fake_download_image(url):
+        assert url == "https://example.com/image/12345"
+        return b"image-bytes", "image/png"
+
+    monkeypatch.setattr(kakao_router, "download_image", fake_download_image)
+    res = client.post(
+        "/kakao/webhook",
+        json={
+            "userRequest": {
+                "user": {"id": "kakao-attachment"},
+                "utterance": "사진을 보냈어요",
+                "attachment": {
+                    "type": "image",
+                    "payload": {
+                        "url": "https://example.com/image/12345",
+                    },
+                },
+            }
+        },
+    )
+
+    assert res.status_code == 200
+    db = SessionLocal()
+    submission = db.query(Submission).one()
+    db.close()
+    assert submission.status == "pending"
+    assert submission.photo_path.endswith(".png")
+
+
 def test_generate_requires_photo():
     parent_id = create_parent()
     db = SessionLocal()
