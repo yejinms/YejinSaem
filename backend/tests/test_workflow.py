@@ -208,6 +208,37 @@ def test_kakao_webhook_registered_image_creates_pending_submission(monkeypatch):
     assert submission.photo_path.endswith(".jpg")
 
 
+def test_kakao_webhook_secureimage_plugin_creates_pending_submission(monkeypatch):
+    create_parent("kakao-secure", phone_number="01077776666")
+
+    async def fake_download_image(url):
+        assert "secure.kakaocdn.net" in url
+        return b"image-bytes", "image/jpeg"
+
+    monkeypatch.setattr(kakao_router, "download_image", fake_download_image)
+    secure_url = (
+        "http://secure.kakaocdn.net/dna/test/img.jpg"
+        "?credential=abc&expires=9999999999"
+    )
+    res = client.post(
+        "/kakao/webhook",
+        json={
+            "userRequest": {"user": {"id": "kakao-secure"}, "utterance": ""},
+            "action": {
+                "name": "이미지보안",
+                "detailParams": {
+                    "secureimage": {
+                        "origin": f"List({secure_url})",
+                    }
+                },
+            },
+        },
+    )
+    assert res.status_code == 200
+    assert "사진을 받았어요" in res.json()["template"]["outputs"][0]["simpleText"]["text"]
+    assert submission_count() == 1
+
+
 def test_kakao_webhook_registered_image_attachment_creates_pending_submission(monkeypatch):
     create_parent("kakao-attachment")
 

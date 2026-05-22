@@ -2,12 +2,12 @@
 kakao.py - Kakao i Open Builder webhook receiver
 """
 
+import json
 import logging
 import os
+import re
 import uuid
 from pathlib import Path
-
-import json
 
 import aiofiles
 import httpx
@@ -134,13 +134,63 @@ def _extract_image_url_from_obj(obj, parent_key: str | None = None) -> str | Non
     return None
 
 
+def _urls_from_secureimage_value(value: str) -> list[str]:
+    """Parse Open Builder @sys.plugin.secureimage origin/value payloads."""
+    if not value:
+        return []
+
+    text = value.strip()
+    try:
+        parsed = json.loads(text)
+        if isinstance(parsed, dict):
+            text = str(parsed.get("secureUrls") or text)
+    except json.JSONDecodeError:
+        pass
+
+    return re.findall(r"https?://[^\s\),\"']+", text)
+
+
+def _extract_openbuilder_image_url(body: dict) -> str | None:
+    action = body.get("action") or {}
+    detail_params = action.get("detailParams") or {}
+    secure = detail_params.get("secureimage") or {}
+    if isinstance(secure, dict):
+        for key in ("origin", "value"):
+            for url in _urls_from_secureimage_value(str(secure.get(key) or "")):
+                return url
+
+    params = action.get("params") or {}
+    for url in _urls_from_secureimage_value(str(params.get("secureimage") or "")):
+        return url
+
+    user_params = (body.get("userRequest") or {}).get("params") or {}
+    media = user_params.get("media") or {}
+    if isinstance(media, dict):
+        media_url = media.get("url")
+        if isinstance(media_url, str) and media_url.startswith("http"):
+            return media_url
+
+    return None
+
+
+SUBMISSION_INTENT_KEYWORDS = ("첨삭", "피드백", "사진", "워크시트", "글쓰기", "이미지")
+
+
+def wants_submission_help(utterance: str) -> bool:
+    normalized = (utterance or "").replace(" ", "")
+    return any(keyword in normalized for keyword in SUBMISSION_INTENT_KEYWORDS)
+
+
 def extract_image_url(body: dict) -> str | None:
     """
     Try to extract an image URL from various Kakao webhook payload formats.
     Kakao Open Builder and related message flows can place image URLs in
     attachment payloads, action detailParams, or nested params objects.
     """
-    # Check the payload recursively, prioritizing explicit image-related keys.
+    found = _extract_openbuilder_image_url(body)
+    if found:
+        return found
+
     prioritized_roots = [
         body.get("userRequest", {}),
         body.get("action", {}),
@@ -229,6 +279,11 @@ async def _handle_kakao_webhook(body: dict, db: Session) -> Response:
         if phone_just_linked:
             return _skill_json(
                 "등록 확인되었어요! 글쓰기 워크시트 사진을 보내주시면 선생님이 피드백을 드릴게요."
+            )
+        if wants_submission_help(utterance):
+            return _skill_json(
+                "채팅창에 글만내면 사진이 전달되지 않을 수 있어요. "
+                "시나리오의 「사진 보내기」 또는 「이미지 보안전송」 버튼으로 워크시트 사진을 보내주세요."
             )
         return _skill_json(
             "안녕하세요! 글쓰기 워크시트 사진을 보내주시면 선생님이 피드백을 드릴게요."

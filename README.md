@@ -77,6 +77,8 @@ https://<your-railway-domain>/kakao/webhook
 
 Unregistered Kakao users do not create submissions. They receive a registration-needed response.
 
+If the channel replies with fallback text like 「이해하기 어려워요」 instead of our messages, Open Builder blocks are not wired to the skill URL — see [docs/openbuilder-fix.md](docs/openbuilder-fix.md).
+
 ## Tests
 
 ```bash
