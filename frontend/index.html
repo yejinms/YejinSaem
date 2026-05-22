@@ -359,19 +359,27 @@
       background: rgba(0,0,0,0.5);
       z-index: 200;
       display: none;
-      overflow-y: auto;
+      overflow: hidden;
+      overscroll-behavior: none;
     }
-    .modal-overlay.open { display: flex; flex-direction: column; }
+    .modal-overlay.open {
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+    }
     .modal {
       background: var(--surface);
       border-radius: 20px 20px 0 0;
-      margin-top: auto;
       width: 100%;
       max-width: 640px;
       margin-left: auto;
       margin-right: auto;
-      padding-bottom: 32px;
-      min-height: 60vh;
+      padding-bottom: max(32px, env(safe-area-inset-bottom));
+      max-height: min(92vh, 92dvh);
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+      flex-shrink: 0;
       animation: slideUp 0.3s ease;
     }
     @keyframes slideUp {
@@ -567,7 +575,8 @@
 
     /* ===== Responsive ===== */
     @media (min-width: 640px) {
-      .modal { border-radius: 20px; margin: auto; max-height: 90vh; overflow-y: auto; }
+      .modal-overlay.open { justify-content: center; }
+      .modal { border-radius: 20px; margin: auto; max-height: 90vh; }
       .tabs { max-width: 640px; margin: 0 auto; }
       .tab-panel { max-width: 640px; margin: 0 auto; }
     }
