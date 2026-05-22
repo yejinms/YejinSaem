@@ -37,11 +37,18 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# CORS middleware - allow all origins for admin dashboard
+# CORS: credentials=True + allow_origins=["*"] breaks browser cross-origin reads.
+# Open Builder skill test (chatbot.kakao.com) needs explicit origins.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=[
+        "https://chatbot.kakao.com",
+        "https://i.kakao.com",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+    ],
+    allow_origin_regex=r"https://.*\.up\.railway\.app",
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )

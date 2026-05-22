@@ -33,8 +33,17 @@ UPLOAD_DIR.mkdir(exist_ok=True)
 
 def _skill_json(text: str, status_code: int = 200) -> Response:
     """Always return Open Builder skill response shape (never FastAPI error JSON)."""
-    body = json.dumps(build_kakao_response(text), ensure_ascii=False)
-    return Response(content=body, status_code=status_code, media_type="application/json")
+    body = json.dumps(
+        build_kakao_response(text),
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    return Response(
+        content=body,
+        status_code=status_code,
+        media_type="application/json",
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 CONTENT_TYPE_EXTENSIONS = {
@@ -160,8 +169,19 @@ async def kakao_webhook(request: Request, db: Session = Depends(get_db)):
         # Open Builder may probe the URL with GET before POST skill tests.
         return _skill_json("스킬 서버 연결이 확인되었습니다.")
 
+    raw = await request.body()
+    logger.info(
+        "Kakao webhook POST headers=%s body_len=%s body_preview=%s",
+        dict(request.headers),
+        len(raw),
+        raw[:500],
+    )
+
     try:
-        body = await request.json()
+        if not raw:
+            body = None
+        else:
+            body = json.loads(raw.decode("utf-8"))
     except Exception:
         logger.warning("Kakao webhook received non-JSON body")
         return _skill_json("요청 형식을 읽을 수 없어요. 오픈빌더 스킬 테스트 JSON을 확인해 주세요.")
