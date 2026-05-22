@@ -109,12 +109,43 @@ def test_admin_auth_when_password_is_configured(monkeypatch):
 
 
 def test_kakao_webhook_unregistered_user_does_not_create_submission():
-    res = client.post("/kakao/webhook", json=kakao_payload("unknown", "https://example.com/a.jpg"))
+    res = client.post("/kakao/webhook", json=kakao_payload("unknown", "안녕"))
     assert res.status_code == 200
     assert submission_count() == 0
     text = res.json()["template"]["outputs"][0]["simpleText"]["text"]
     assert "생글방글입니다" in text
     assert "휴대폰" not in text
+
+
+def test_kakao_webhook_unlinked_user_with_image_creates_guest_submission(monkeypatch):
+    async def fake_download_image(url):
+        return b"image-bytes", "image/jpeg"
+
+    monkeypatch.setattr(kakao_router, "download_image", fake_download_image)
+    res = client.post(
+        "/kakao/webhook",
+        json=kakao_payload("new-visitor-bot", "https://example.com/worksheet.jpg"),
+    )
+    assert res.status_code == 200
+    assert "사진을 받았어요" in res.json()["template"]["outputs"][0]["simpleText"]["text"]
+    assert submission_count() == 1
+
+    db = SessionLocal()
+    parent = db.query(Parent).filter(Parent.kakao_user_id == "new-visitor-bot").one()
+    assert parent.child_name == "채널 미등록"
+    assert parent.phone_number is None
+    db.close()
+
+
+def test_kakao_webhook_image_utterance_without_urls_prompts_secureimage():
+    res = client.post(
+        "/kakao/webhook",
+        json=kakao_payload("visitor-no-url", "1장의 이미지를 보냈어요."),
+    )
+    assert res.status_code == 200
+    text = res.json()["template"]["outputs"][0]["simpleText"]["text"]
+    assert "사진 보내기" in text
+    assert submission_count() == 0
 
 
 def test_kakao_channel_messages_never_include_internal_name():

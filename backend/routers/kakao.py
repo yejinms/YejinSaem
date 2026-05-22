@@ -18,7 +18,12 @@ from sqlalchemy.orm import Session
 from database import Submission, get_db
 from routers.admin import serialize_photo_paths
 from services.kakao_service import build_kakao_response
-from services.parent_match import CHANNEL_GREETING, resolve_parent
+from services.parent_match import (
+    CHANNEL_GREETING,
+    get_or_create_guest_parent,
+    looks_like_image_only_utterance,
+    resolve_parent,
+)
 from validation import (
     ALLOWED_IMAGE_EXTENSIONS,
     validate_image_content,
@@ -289,9 +294,16 @@ async def _handle_kakao_webhook(body: dict, db: Session) -> Response:
 
     if not parent:
         if image_urls:
-            logger.warning(
-                "Kakao image from unlinked user (set botUserKey in admin): bot_user_key=%s",
+            parent = get_or_create_guest_parent(db, kakao_user_id)
+        elif looks_like_image_only_utterance(utterance):
+            logger.info(
+                "Kakao image utterance without URLs: bot_user_key=%s utterance=%r",
                 kakao_user_id,
+                utterance[:80],
+            )
+            return _skill_json(
+                "사진이 전달되지 않았어요. "
+                "「선생님 첨삭 받기」 안의 사진 보내기(이미지 보안전송) 버튼으로 올려주세요."
             )
         else:
             logger.info(
@@ -299,9 +311,14 @@ async def _handle_kakao_webhook(body: dict, db: Session) -> Response:
                 kakao_user_id,
                 utterance[:80],
             )
-        return _skill_json(CHANNEL_GREETING)
+            return _skill_json(CHANNEL_GREETING)
 
     if not image_urls:
+        if looks_like_image_only_utterance(utterance):
+            return _skill_json(
+                "사진이 전달되지 않았어요. "
+                "「선생님 첨삭 받기」 안의 사진 보내기(이미지 보안전송) 버튼으로 올려주세요."
+            )
         logger.info(f"Text message received from {kakao_user_id}: {utterance}")
         return _skill_json(CHANNEL_GREETING)
 
