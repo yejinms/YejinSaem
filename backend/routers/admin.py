@@ -317,6 +317,8 @@ def create_or_update_parent(body: ParentCreate, db: Session = Depends(get_db)):
         existing.child_name = body.child_name
         existing.child_age = body.child_age
         existing.level = body.level
+        if body.phone_number is not None:
+            existing.phone_number = body.phone_number
         db.commit()
         db.refresh(existing)
         parent = existing

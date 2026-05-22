@@ -822,9 +822,15 @@ function renderSubmissionModal(s) {
         <label>생성된 피드백 (수정 가능)</label>
         <textarea class="feedback-area" id="modal-feedback" rows="6">${feedbackValue}</textarea>
       </div>
-      <button class="btn btn-success" id="approve-btn" onclick="approveFeedback()" ${isSent ? 'disabled' : ''}>
-        ✅ 승인 후 카카오 전송
-      </button>
+      <div class="btn-row">
+        <button type="button" class="btn btn-outline" id="copy-btn" onclick="copyFeedback()">
+          복사하기
+        </button>
+        <button type="button" class="btn btn-success" id="approve-btn" onclick="approveFeedback()" ${isSent ? 'disabled' : ''}>
+          카카오 전송
+        </button>
+      </div>
+      <p class="hint" style="margin-top:10px">로컬 사용: 복사 후 카톡에 붙여넣기. 자동 전송은 오른쪽 버튼.</p>
     </div>
   `;
 }
