@@ -234,6 +234,49 @@
       padding: 8px 0;
     }
 
+    .paste-zone {
+      padding: 18px 14px;
+      border: 2px dashed var(--border);
+      border-radius: 10px;
+      text-align: center;
+      cursor: pointer;
+      background: var(--bg);
+      margin-bottom: 10px;
+      outline: none;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .paste-zone:focus,
+    .paste-zone.has-image {
+      border-color: var(--primary);
+      background: var(--primary-light);
+    }
+    .paste-zone-text {
+      font-size: 14px;
+      display: block;
+      color: var(--text);
+    }
+    .paste-zone-sub {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 6px;
+      display: block;
+    }
+    .upload-preview {
+      margin-bottom: 10px;
+      text-align: center;
+    }
+    .upload-preview img {
+      max-width: 100%;
+      max-height: 220px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      object-fit: contain;
+    }
+    .upload-preview .clear-preview {
+      margin-top: 8px;
+      width: auto;
+    }
+
     /* ===== Form Elements ===== */
     label {
       display: block;
@@ -495,12 +538,17 @@
       </div>
       <div class="form-group" style="margin-bottom:10px">
         <label>워크시트 사진</label>
+        <div id="upload-paste-zone" class="paste-zone" tabindex="0">
+          <span class="paste-zone-text">여기를 클릭한 뒤 <strong>Ctrl+V</strong> (Mac: ⌘V)로 붙여넣기</span>
+          <span class="paste-zone-sub">카톡·메일에서 복사한 이미지도 됩니다</span>
+        </div>
+        <div id="upload-preview" class="upload-preview" style="display:none"></div>
         <input type="file" id="upload-photo-input" accept="image/*" />
       </div>
       <button class="btn btn-primary btn-sm" type="button" onclick="uploadSubmission()" id="upload-btn" style="width:100%">
         사진 업로드
       </button>
-      <p class="hint">카톡으로 받은 사진을 올린 뒤 피드백을 생성하고, 복사해서 직접 보내세요.</p>
+      <p class="hint">파일 선택 · 붙여넣기 · 업로드 후 피드백 생성 → 복사해서 카톡 전송</p>
     </div>
   </div>
   <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
@@ -660,6 +708,8 @@ const LEVELS = {
 let currentSubmissionId = null;
 let selectedLevel = null;
 let selectedStage = null;
+let pendingUploadFile = null;
+let pendingUploadPreviewUrl = null;
 
 // ===== Utility =====
 function formatDate(isoString) {
@@ -720,15 +770,88 @@ async function refreshUploadParentSelect() {
   }
 }
 
+function clearPendingUpload() {
+  if (pendingUploadPreviewUrl) URL.revokeObjectURL(pendingUploadPreviewUrl);
+  pendingUploadFile = null;
+  pendingUploadPreviewUrl = null;
+  const preview = document.getElementById('upload-preview');
+  const zone = document.getElementById('upload-paste-zone');
+  if (preview) {
+    preview.innerHTML = '';
+    preview.style.display = 'none';
+  }
+  if (zone) zone.classList.remove('has-image');
+  const fileInput = document.getElementById('upload-photo-input');
+  if (fileInput) fileInput.value = '';
+}
+
+function setPendingUploadFile(file) {
+  if (!file || !file.type.startsWith('image/')) {
+    toast('이미지만 붙여넣거나 선택할 수 있어요.');
+    return;
+  }
+  clearPendingUpload();
+  pendingUploadFile = file;
+  pendingUploadPreviewUrl = URL.createObjectURL(file);
+  const preview = document.getElementById('upload-preview');
+  const zone = document.getElementById('upload-paste-zone');
+  if (preview) {
+    preview.innerHTML = `<img src="${pendingUploadPreviewUrl}" alt="미리보기" />
+      <br><button type="button" class="btn btn-outline btn-sm clear-preview" onclick="clearPendingUpload()">이미지 제거</button>`;
+    preview.style.display = 'block';
+  }
+  if (zone) zone.classList.add('has-image');
+}
+
+function handleUploadPaste(e) {
+  const items = e.clipboardData?.items;
+  if (!items) return;
+  for (const item of items) {
+    if (item.type.indexOf('image') !== -1) {
+      e.preventDefault();
+      const file = item.getAsFile();
+      if (file) {
+        const named = file.name && file.name !== 'image.png'
+          ? file
+          : new File([file], `paste-${Date.now()}.png`, { type: file.type || 'image/png' });
+        setPendingUploadFile(named);
+        toast('이미지를 붙였어요. 업로드 버튼을 눌러 주세요.');
+      }
+      return;
+    }
+  }
+}
+
+function initUploadHandlers() {
+  const zone = document.getElementById('upload-paste-zone');
+  const fileInput = document.getElementById('upload-photo-input');
+  if (zone) {
+    zone.addEventListener('paste', handleUploadPaste);
+    zone.addEventListener('click', () => zone.focus());
+  }
+  if (fileInput) {
+    fileInput.addEventListener('change', () => {
+      const f = fileInput.files?.[0];
+      if (f) setPendingUploadFile(f);
+    });
+  }
+  document.addEventListener('paste', (e) => {
+    const panel = document.getElementById('panel-pending');
+    if (!panel?.classList.contains('active')) return;
+    if (e.target.closest('.modal-overlay.open')) return;
+    handleUploadPaste(e);
+  });
+}
+
 async function uploadSubmission() {
   const parentId = document.getElementById('upload-parent-select')?.value;
   const fileInput = document.getElementById('upload-photo-input');
   const btn = document.getElementById('upload-btn');
   if (!parentId) { toast('학부모를 선택해 주세요.'); return; }
-  const file = fileInput?.files?.[0];
-  if (!file) { toast('사진을 선택해 주세요.'); return; }
+  const file = pendingUploadFile || fileInput?.files?.[0];
+  if (!file) { toast('사진을 선택하거나 Ctrl+V로 붙여넣어 주세요.'); return; }
   const form = new FormData();
-  form.append('photo', file);
+  form.append('photo', file, file.name || 'worksheet.jpg');
   btn.disabled = true;
   btn.textContent = '업로드 중...';
   try {
@@ -741,7 +864,7 @@ async function uploadSubmission() {
       throw new Error(err.detail || '업로드 실패');
     }
     await res.json();
-    fileInput.value = '';
+    clearPendingUpload();
     toast('업로드 완료! 피드백을 생성해 주세요.');
     loadPending();
   } catch (e) {
@@ -1201,6 +1324,7 @@ async function openParentHistory(parentId, childName) {
 
 // ===== Init =====
 document.addEventListener('DOMContentLoaded', () => {
+  initUploadHandlers();
   refreshUploadParentSelect();
   loadPending();
   // Auto-refresh pending every 60 seconds
