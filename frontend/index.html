@@ -650,12 +650,15 @@
           <label>전화번호 <small style="color:#6b8878">(학부모 식별 · 친구톡 발송)</small></label>
           <input type="tel" id="p-phone" placeholder="예: 01012345678" required />
           <small style="color:#6b8878; display:block; margin-top:6px">
-            채널에서 첫 대화 시 이 번호를 입력하면 카카오 계정이 자동 연결됩니다. 카카오 ID는 입력하지 않아도 됩니다.
+            친구톡 발송용입니다. 채팅에서 번호를 묻지 않습니다 — 선생님이 여기서만 등록하세요.
           </small>
         </div>
-        <div class="form-group" id="p-kakao-group" style="display:none">
-          <label>카카오 연결 상태</label>
-          <input type="text" id="p-kakao-id" readonly style="opacity:0.85" />
+        <div class="form-group" id="p-kakao-group">
+          <label>카카오 채널 연결 ID <small style="color:#6b8878">(botUserKey)</small></label>
+          <input type="text" id="p-kakao-id" placeholder="채널 대화 후 Railway 로그에서 복사" />
+          <small style="color:#6b8878; display:block; margin-top:6px">
+            학부모가 채널에서 보낸 뒤 Deploy Logs의 <code>bot_user_key=...</code> 값을 붙여 넣으면 사진이 이 학부모로 들어옵니다.
+          </small>
         </div>
         <div class="form-group">
           <label>내부 관리명</label>
@@ -1357,7 +1360,7 @@ async function loadParents() {
             <div>
               <div class="parent-name">${p.child_name}</div>
               <div class="parent-sub">${p.level} · ${p.child_age ? p.child_age+'세' : '나이 미입력'} · 제출 ${p.submission_count}건</div>
-              <div class="parent-sub" style="font-size:11px; margin-top:2px; color:#aaa">${p.phone_number || '전화번호 미등록'} · ${(p.kakao_user_id || '').startsWith('pending:') ? '채널 미연결' : '채널 연결됨'}</div>
+              <div class="parent-sub" style="font-size:11px; margin-top:2px; color:#aaa">${p.phone_number || '전화번호 미등록'} · ${(p.kakao_user_id || '').startsWith('pending:') ? '채널 ID 미입력' : '채널 연결됨'}</div>
             </div>
             <button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); openEditParent(${p.id})">수정</button>
           </div>
@@ -1376,7 +1379,7 @@ function openAddParent() {
   document.querySelectorAll('#parent-form .level-btn').forEach((b, i) => {
     b.classList.toggle('active', i === 0);
   });
-  document.getElementById('p-kakao-group').style.display = 'none';
+  document.getElementById('p-kakao-id').value = '';
   openModal('parent-modal');
 }
 
@@ -1388,9 +1391,8 @@ async function openEditParent(parentId) {
 
   try {
     const p = await api(`/admin/parents/${parentId}`);
-    const linked = !(p.kakao_user_id || '').startsWith('pending:');
-    document.getElementById('p-kakao-group').style.display = 'block';
-    document.getElementById('p-kakao-id').value = linked ? '채널 연결됨' : '채널 미연결 (학부모가 번호 입력 시 자동 연결)';
+    const kakaoId = p.kakao_user_id || '';
+    document.getElementById('p-kakao-id').value = kakaoId.startsWith('pending:') ? '' : kakaoId;
     document.getElementById('p-child-name').value = p.child_name || '';
     document.getElementById('p-phone').value = p.phone_number || '';
     document.getElementById('p-child-age').value = p.child_age || '';
@@ -1423,6 +1425,8 @@ async function saveParent(e) {
       child_age: parseInt(document.getElementById('p-child-age').value) || null,
       level: document.getElementById('p-level').value,
     };
+    const kakaoId = document.getElementById('p-kakao-id').value.trim();
+    if (kakaoId) payload.kakao_user_id = kakaoId;
     await api(currentParentId ? `/admin/parents/${currentParentId}` : '/admin/parents', {
       method: currentParentId ? 'PUT' : 'POST',
       body: JSON.stringify(payload),

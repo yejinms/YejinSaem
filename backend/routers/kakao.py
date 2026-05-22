@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from database import Submission, get_db
 from services.kakao_service import build_kakao_response
-from services.parent_match import extract_phone_from_text, resolve_parent
+from services.parent_match import CHANNEL_GREETING, resolve_parent
 from validation import (
     ALLOWED_IMAGE_EXTENSIONS,
     validate_image_content,
@@ -173,14 +173,6 @@ def _extract_openbuilder_image_url(body: dict) -> str | None:
     return None
 
 
-SUBMISSION_INTENT_KEYWORDS = ("첨삭", "피드백", "사진", "워크시트", "글쓰기", "이미지")
-
-
-def wants_submission_help(utterance: str) -> bool:
-    normalized = (utterance or "").replace(" ", "")
-    return any(keyword in normalized for keyword in SUBMISSION_INTENT_KEYWORDS)
-
-
 def extract_image_url(body: dict) -> str | None:
     """
     Try to extract an image URL from various Kakao webhook payload formats.
@@ -262,32 +254,26 @@ async def _handle_kakao_webhook(body: dict, db: Session) -> Response:
         return _skill_json("메시지를 처리할 수 없었어요. 다시 시도해 주세요.")
 
     utterance = body.get("userRequest", {}).get("utterance", "") or ""
-    parent, link_message, phone_just_linked = resolve_parent(db, kakao_user_id, utterance)
-    if link_message:
-        logger.info(
-            "Kakao user link issue: bot_user_key=%s utterance=%r",
-            kakao_user_id,
-            utterance[:80],
-        )
-        return _skill_json(link_message)
-    if not parent:
-        return _skill_json("등록 정보를 찾을 수 없어요. 선생님께 문의해 주세요.")
-
     image_url = extract_image_url(body)
+    parent = resolve_parent(db, kakao_user_id)
+
+    if not parent:
+        if image_url:
+            logger.warning(
+                "Kakao image from unlinked user (set botUserKey in admin): bot_user_key=%s",
+                kakao_user_id,
+            )
+        else:
+            logger.info(
+                "Kakao text from unlinked user: bot_user_key=%s utterance=%r",
+                kakao_user_id,
+                utterance[:80],
+            )
+        return _skill_json(CHANNEL_GREETING)
+
     if not image_url:
         logger.info(f"Text message received from {kakao_user_id}: {utterance}")
-        if phone_just_linked:
-            return _skill_json(
-                "등록 확인되었어요! 글쓰기 워크시트 사진을 보내주시면 선생님이 피드백을 드릴게요."
-            )
-        if wants_submission_help(utterance):
-            return _skill_json(
-                "채팅창에 글만내면 사진이 전달되지 않을 수 있어요. "
-                "시나리오의 「사진 보내기」 또는 「이미지 보안전송」 버튼으로 워크시트 사진을 보내주세요."
-            )
-        return _skill_json(
-            "안녕하세요! 글쓰기 워크시트 사진을 보내주시면 선생님이 피드백을 드릴게요."
-        )
+        return _skill_json(CHANNEL_GREETING)
 
     downloaded = await download_image(image_url)
     if not downloaded:
@@ -326,4 +312,4 @@ async def _handle_kakao_webhook(body: dict, db: Session) -> Response:
     db.refresh(submission)
 
     logger.info(f"Created submission #{submission.id} for kakao_user_id={kakao_user_id}")
-    return _skill_json("사진을 받았어요! 선생님이 곧 피드백을 드릴게요.")
+    return _skill_json("사진을 받았어요! 담당 선생님이 확인 후 안내드릴게요.")

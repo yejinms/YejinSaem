@@ -58,6 +58,7 @@ class ParentCreate(BaseModel):
 
 class ParentUpdate(BaseModel):
     phone_number: Optional[str] = None
+    kakao_user_id: Optional[str] = None
     child_name: Optional[str] = None
     child_age: Optional[int] = None
     level: Optional[str] = None
@@ -387,7 +388,7 @@ def list_parents(db: Session = Depends(get_db)):
 
 @router.post("/parents", status_code=status.HTTP_201_CREATED)
 def create_or_update_parent(body: ParentCreate, db: Session = Depends(get_db)):
-    """Create or update a parent by phone number (Kakao channel links on first chat)."""
+    """Create or update a parent by phone number (Kakao botUserKey is linked in admin)."""
     validate_level(body.level)
     validate_child_age(body.child_age)
     phone_number = normalize_phone_number(body.phone_number, required=True)
@@ -449,6 +450,10 @@ def update_parent(parent_id: int, body: ParentUpdate, db: Session = Depends(get_
         parent.child_name = body.child_name
     if body.phone_number is not None:
         parent.phone_number = normalize_phone_number(body.phone_number)
+    if body.kakao_user_id is not None:
+        manual_kakao = body.kakao_user_id.strip()
+        if manual_kakao:
+            parent.kakao_user_id = manual_kakao
     if body.child_age is not None:
         validate_child_age(body.child_age)
         parent.child_age = body.child_age

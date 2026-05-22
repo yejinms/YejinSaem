@@ -112,83 +112,69 @@ def test_kakao_webhook_unregistered_user_does_not_create_submission():
     res = client.post("/kakao/webhook", json=kakao_payload("unknown", "https://example.com/a.jpg"))
     assert res.status_code == 200
     assert submission_count() == 0
-    assert "휴대폰 번호" in res.json()["template"]["outputs"][0]["simpleText"]["text"]
-
-
-def test_kakao_webhook_relinks_when_same_bot_enters_different_phone(monkeypatch):
-    db = SessionLocal()
-    first = Parent(
-        kakao_user_id="shared-bot",
-        phone_number="01011111111",
-        child_name="예진",
-        child_age=8,
-        level="표현력",
-    )
-    second = Parent(
-        kakao_user_id="pending:01022222222",
-        phone_number="01022222222",
-        child_name="민준",
-        child_age=9,
-        level="표현력",
-    )
-    db.add_all([first, second])
-    db.commit()
-    db.close()
-
-    res = client.post("/kakao/webhook", json=kakao_payload("shared-bot", "01022222222"))
-    assert res.status_code == 200
-    assert "예진" not in res.json()["template"]["outputs"][0]["simpleText"]["text"]
-    assert "등록 확인" in res.json()["template"]["outputs"][0]["simpleText"]["text"]
-
-    db = SessionLocal()
-    linked = db.query(Parent).filter(Parent.child_name == "민준").one()
-    assert linked.kakao_user_id == "shared-bot"
-    released = db.query(Parent).filter(Parent.child_name == "예진").one()
-    assert released.kakao_user_id.startswith("pending:")
-    db.close()
+    text = res.json()["template"]["outputs"][0]["simpleText"]["text"]
+    assert "생글방글입니다" in text
+    assert "휴대폰" not in text
 
 
 def test_kakao_channel_messages_never_include_internal_name():
-    create_parent("pending:01088887777", phone_number="01088887777")
+    create_parent("name-check-bot", phone_number="01088887777")
     db = SessionLocal()
     parent = db.query(Parent).filter(Parent.phone_number == "01088887777").one()
     parent.child_name = "비밀관리명"
     db.commit()
     db.close()
 
-    res = client.post("/kakao/webhook", json=kakao_payload("name-check-bot", "01088887777"))
+    res = client.post("/kakao/webhook", json=kakao_payload("name-check-bot", "첨삭"))
     text = res.json()["template"]["outputs"][0]["simpleText"]["text"]
     assert "비밀관리명" not in text
     assert "학부모님" not in text
+    assert "생글방글입니다" in text
 
 
-def test_kakao_webhook_links_parent_by_phone_then_accepts_image(monkeypatch):
-    create_parent("pending:01099998888", phone_number="01099998888")
+def test_admin_can_set_kakao_user_id_on_update():
+    created = client.post(
+        "/admin/parents",
+        json={
+            "phone_number": "01055556666",
+            "child_name": "테스트",
+            "level": "표현력",
+        },
+    )
+    parent_id = created.json()["id"]
+    updated = client.put(
+        f"/admin/parents/{parent_id}",
+        json={"kakao_user_id": "mom-bot-key-123"},
+    )
+    assert updated.status_code == 200
+    assert updated.json()["kakao_user_id"] == "mom-bot-key-123"
+
+
+def test_kakao_webhook_linked_user_accepts_image(monkeypatch):
+    create_parent("real-bot-user", phone_number="01099998888")
 
     async def fake_download_image(url):
         return b"image-bytes", "image/jpeg"
 
     monkeypatch.setattr(kakao_router, "download_image", fake_download_image)
 
-    link_res = client.post("/kakao/webhook", json=kakao_payload("real-bot-user", "01099998888"))
-    assert link_res.status_code == 200
-    assert "등록 확인" in link_res.json()["template"]["outputs"][0]["simpleText"]["text"]
-    assert submission_count() == 0
-
     image_res = client.post(
         "/kakao/webhook",
         json=kakao_payload("real-bot-user", "https://example.com/a.jpg"),
     )
     assert image_res.status_code == 200
+    assert "사진을 받았어요" in image_res.json()["template"]["outputs"][0]["simpleText"]["text"]
     assert submission_count() == 1
 
 
-def test_kakao_webhook_registered_text_only_does_not_create_submission():
+def test_kakao_webhook_registered_text_uses_channel_greeting():
     create_parent("kakao-text")
-    res = client.post("/kakao/webhook", json=kakao_payload("kakao-text", "안녕하세요"))
+    res = client.post("/kakao/webhook", json=kakao_payload("kakao-text", "선생님 첨삭 받기"))
     assert res.status_code == 200
     assert submission_count() == 0
-    assert "사진을 보내주시면" in res.json()["template"]["outputs"][0]["simpleText"]["text"]
+    text = res.json()["template"]["outputs"][0]["simpleText"]["text"]
+    assert "생글방글입니다" in text
+    assert "워크시트" not in text
 
 
 def test_kakao_webhook_registered_image_creates_pending_submission(monkeypatch):
