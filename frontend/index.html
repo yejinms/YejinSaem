@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>예진샘 관리자</title>
+  <link rel="icon" href="data:," />
   <style>
     /* ===== Reset & Base ===== */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -159,6 +160,90 @@
       padding: 32px;
       color: var(--text-muted);
       font-size: 14px;
+    }
+
+    /* ===== Direct Upload ===== */
+    .direct-upload-grid {
+      display: grid;
+      gap: 10px;
+    }
+    .paste-zone {
+      min-height: 88px;
+      border: 2px dashed var(--border);
+      border-radius: 10px;
+      background: var(--bg);
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 16px;
+      cursor: pointer;
+      outline: none;
+    }
+    .paste-zone:focus,
+    .paste-zone.has-file {
+      border-color: var(--primary);
+      background: #eef7f1;
+      color: var(--primary-dark);
+    }
+    .upload-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .upload-preview {
+      display: none;
+      grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .upload-preview-item {
+      position: relative;
+      min-width: 0;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+      overflow: hidden;
+    }
+    .upload-preview-item img {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      object-fit: cover;
+      display: block;
+      background: var(--bg);
+    }
+    .upload-preview-name {
+      padding: 6px 8px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .upload-remove-btn {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      width: 26px;
+      height: 26px;
+      border: none;
+      border-radius: 50%;
+      background: rgba(44,62,53,0.82);
+      color: white;
+      font-size: 16px;
+      line-height: 1;
+      cursor: pointer;
+    }
+    .thumb-count {
+      position: absolute;
+      right: 4px;
+      bottom: 4px;
+      padding: 2px 6px;
+      border-radius: 10px;
+      background: rgba(44,62,53,0.82);
+      color: white;
+      font-size: 11px;
+      font-weight: 700;
     }
 
     /* ===== Buttons ===== */
@@ -327,6 +412,16 @@
       background: #f0f4f2;
       margin-bottom: 16px;
     }
+    .photo-gallery {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .photo-gallery .photo-full {
+      margin-bottom: 0;
+      height: 180px;
+    }
     .no-photo {
       width: 100%;
       height: 160px;
@@ -361,6 +456,18 @@
       background: #fffef7;
       border-color: #e8d97a;
       min-height: 140px;
+    }
+    .feedback-actions {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+    }
+    .feedback-actions .copy-feedback-btn {
+      width: auto;
+      min-width: 82px;
+      padding-left: 14px;
+      padding-right: 14px;
+      white-space: nowrap;
     }
 
     /* ===== Toast ===== */
@@ -461,6 +568,29 @@
 
 <!-- Tab: Pending Submissions -->
 <div class="tab-panel active" id="panel-pending">
+  <div class="card">
+    <div class="card-body direct-upload-grid">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+        <div class="section-title" style="margin:0">직접 제출 만들기</div>
+        <button class="btn btn-outline btn-sm" onclick="loadUploadParents()">학부모 새로고침</button>
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label>학부모</label>
+        <select id="upload-parent-select">
+          <option value="">학부모를 불러오는 중...</option>
+        </select>
+      </div>
+      <div class="paste-zone" id="paste-zone" tabindex="0">
+        이미지 파일을 선택하거나 이 영역을 클릭한 뒤 붙여넣기
+      </div>
+      <div class="upload-preview" id="upload-preview"></div>
+      <input type="file" id="direct-photo-input" accept="image/*" multiple style="display:none" />
+      <div class="upload-actions">
+        <button class="btn btn-outline" onclick="chooseDirectPhoto()">파일 선택</button>
+        <button class="btn btn-primary" id="direct-submit-btn" onclick="createDirectSubmission()">제출 만들기</button>
+      </div>
+    </div>
+  </div>
   <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
     <div class="section-title" style="margin:0">대기 중인 피드백</div>
     <button class="btn btn-outline btn-sm" onclick="loadPending()">새로고침</button>
@@ -616,8 +746,13 @@ const LEVELS = {
 
 // ===== State =====
 let currentSubmissionId = null;
+let currentParentId = null;
 let selectedLevel = null;
 let selectedStage = null;
+let directUploadFiles = [];
+let directUploadFileSeq = 0;
+const ADMIN_TOKEN_KEY = 'yejinsaem_admin_token';
+const MAX_DIRECT_UPLOAD_IMAGES = 10;
 
 // ===== Utility =====
 function formatDate(isoString) {
@@ -644,11 +779,48 @@ function toast(msg, duration = 2500) {
   setTimeout(() => el.remove(), duration);
 }
 
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
+function uploadUrl(path) {
+  return `/uploads/${String(path).split('/').pop()}`;
+}
+
+function getSubmissionPhotoPaths(submission) {
+  if (Array.isArray(submission.photo_paths) && submission.photo_paths.length > 0) {
+    return submission.photo_paths;
+  }
+  return submission.photo_path ? [submission.photo_path] : [];
+}
+
 async function api(path, opts = {}) {
+  const headers = { ...(opts.headers || {}) };
+  if (!(opts.body instanceof FormData)) {
+    headers['Content-Type'] = 'application/json';
+  }
+  const token = sessionStorage.getItem(ADMIN_TOKEN_KEY);
+  if (token) {
+    headers.Authorization = `Bearer ${encodeURIComponent(token)}`;
+  }
+
   const res = await fetch(API_BASE + path, {
-    headers: { 'Content-Type': 'application/json' },
     ...opts,
+    headers,
   });
+  if (res.status === 401) {
+    sessionStorage.removeItem(ADMIN_TOKEN_KEY);
+    const password = prompt('관리자 비밀번호를 입력해주세요.');
+    if (password) {
+      sessionStorage.setItem(ADMIN_TOKEN_KEY, password);
+      return api(path, opts);
+    }
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
     throw new Error(err.detail || '오류가 발생했습니다.');
@@ -684,6 +856,142 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
   });
 });
 
+// ===== Direct Upload =====
+async function loadUploadParents() {
+  const select = document.getElementById('upload-parent-select');
+  if (!select) return;
+  select.innerHTML = '<option value="">학부모를 불러오는 중...</option>';
+
+  try {
+    const parents = await api('/admin/parents');
+    if (parents.length === 0) {
+      select.innerHTML = '<option value="">등록된 학부모가 없습니다</option>';
+      return;
+    }
+    select.innerHTML = parents.map(p => `
+      <option value="${p.id}">${escapeHtml(p.child_name)} · ${escapeHtml(p.phone_number || '전화번호 미등록')} · ${escapeHtml(p.kakao_user_id)}</option>
+    `).join('');
+  } catch (e) {
+    select.innerHTML = '<option value="">학부모 로드 실패</option>';
+    toast('❌ 학부모 목록 오류: ' + e.message, 4000);
+  }
+}
+
+function chooseDirectPhoto() {
+  document.getElementById('direct-photo-input')?.click();
+}
+
+function renderDirectUploadFiles() {
+  const zone = document.getElementById('paste-zone');
+  const preview = document.getElementById('upload-preview');
+  if (!zone || !preview) return;
+
+  if (directUploadFiles.length === 0) {
+    zone.classList.remove('has-file');
+    zone.textContent = '이미지 파일을 선택하거나 이 영역을 클릭한 뒤 붙여넣기';
+    preview.style.display = 'none';
+    preview.innerHTML = '';
+    return;
+  }
+
+  zone.classList.add('has-file');
+  zone.textContent = `${directUploadFiles.length}장이 준비되었습니다. 추가 이미지는 다시 선택하거나 붙여넣으세요.`;
+  preview.style.display = 'grid';
+  preview.innerHTML = directUploadFiles.map(item => `
+    <div class="upload-preview-item">
+      <img src="${item.previewUrl}" alt="${escapeHtml(item.file.name || '업로드 이미지')}" />
+      <button class="upload-remove-btn" type="button" onclick="removeDirectUploadFile(${item.id})" aria-label="이미지 삭제">×</button>
+      <div class="upload-preview-name">${escapeHtml(item.file.name || '붙여넣은 이미지')}</div>
+    </div>
+  `).join('');
+}
+
+function addDirectUploadFiles(files) {
+  const incomingFiles = Array.from(files || []);
+  if (incomingFiles.length === 0) return;
+
+  let added = 0;
+  let skipped = 0;
+  for (const file of incomingFiles) {
+    if (!file || !file.type.startsWith('image/')) {
+      skipped += 1;
+      continue;
+    }
+    if (directUploadFiles.length >= MAX_DIRECT_UPLOAD_IMAGES) {
+      skipped += 1;
+      continue;
+    }
+
+    directUploadFiles.push({
+      id: ++directUploadFileSeq,
+      file,
+      previewUrl: URL.createObjectURL(file),
+    });
+    added += 1;
+  }
+
+  renderDirectUploadFiles();
+  if (skipped > 0) {
+    toast(`이미지는 최대 ${MAX_DIRECT_UPLOAD_IMAGES}장까지, 이미지 파일만 추가할 수 있습니다.`, 3000);
+  } else if (added > 1) {
+    toast(`${added}장의 이미지를 추가했습니다.`, 1800);
+  }
+}
+
+function removeDirectUploadFile(id) {
+  const item = directUploadFiles.find(fileItem => fileItem.id === id);
+  if (item) URL.revokeObjectURL(item.previewUrl);
+  directUploadFiles = directUploadFiles.filter(fileItem => fileItem.id !== id);
+  renderDirectUploadFiles();
+}
+
+function resetDirectUploadFile() {
+  directUploadFiles.forEach(item => URL.revokeObjectURL(item.previewUrl));
+  directUploadFiles = [];
+
+  const input = document.getElementById('direct-photo-input');
+  if (input) input.value = '';
+  renderDirectUploadFiles();
+}
+
+async function createDirectSubmission() {
+  const parentId = document.getElementById('upload-parent-select')?.value;
+  const btn = document.getElementById('direct-submit-btn');
+
+  if (!parentId) {
+    toast('학부모를 선택해주세요.', 2500);
+    return;
+  }
+  if (directUploadFiles.length === 0) {
+    toast('이미지를 1장 이상 선택하거나 붙여넣어주세요.', 2500);
+    return;
+  }
+
+  const form = new FormData();
+  directUploadFiles.forEach(item => {
+    form.append('photos', item.file, item.file.name || 'pasted-image.png');
+  });
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> 생성 중...';
+
+  try {
+    const result = await api(`/admin/submissions/upload?parent_id=${encodeURIComponent(parentId)}`, {
+      method: 'POST',
+      body: form,
+    });
+    toast('제출이 생성되었습니다.');
+    resetDirectUploadFile();
+    await loadPending();
+    openSubmission(result.id);
+  } catch (e) {
+    toast('❌ 제출 생성 실패: ' + e.message, 4000);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '제출 만들기';
+  }
+}
+
 // ===== Pending Submissions =====
 async function loadPending() {
   const container = document.getElementById('pending-list');
@@ -708,8 +1016,12 @@ function renderSubmissionList(container, submissions) {
   }
 
   container.innerHTML = submissions.map(s => {
-    const photoHtml = s.photo_path
-      ? `<div class="thumb"><img src="/uploads/${s.photo_path.split('/').pop()}" onerror="this.parentElement.innerHTML='📄'" /></div>`
+    const photoPaths = getSubmissionPhotoPaths(s);
+    const photoHtml = photoPaths.length > 0
+      ? `<div class="thumb" style="position:relative">
+          <img src="${uploadUrl(photoPaths[0])}" onerror="this.parentElement.innerHTML='📄'" />
+          ${photoPaths.length > 1 ? `<span class="thumb-count">${photoPaths.length}</span>` : ''}
+        </div>`
       : `<div class="thumb">📄</div>`;
     const parent = s.parent;
     const childName = parent ? parent.child_name : '(미등록)';
@@ -758,8 +1070,13 @@ function renderSubmissionModal(s) {
   selectedLevel = currentLevel;
   selectedStage = currentStage;
 
-  const photoHtml = s.photo_path
-    ? `<img class="photo-full" src="/uploads/${s.photo_path.split('/').pop()}" onerror="this.style.display='none'" />`
+  const photoPaths = getSubmissionPhotoPaths(s);
+  const photoHtml = photoPaths.length > 0
+    ? `<div class="photo-gallery">
+        ${photoPaths.map(path => `
+          <img class="photo-full" src="${uploadUrl(path)}" onerror="this.style.display='none'" />
+        `).join('')}
+      </div>`
     : `<div class="no-photo">📄</div>`;
 
   const stageOptions = Object.entries(LEVELS[currentLevel]?.stages || {})
@@ -768,6 +1085,8 @@ function renderSubmissionModal(s) {
 
   const feedbackValue = s.feedback_draft || '';
   const isSent = s.status === 'sent';
+  const isApproved = s.status === 'approved';
+  const sendButtonText = isApproved ? '다시 전송' : '승인 후 카카오 전송';
 
   document.getElementById('submission-modal-body').innerHTML = `
     ${photoHtml}
@@ -820,11 +1139,16 @@ function renderSubmissionModal(s) {
       <div class="divider"></div>
       <div class="form-group">
         <label>생성된 피드백 (수정 가능)</label>
-        <textarea class="feedback-area" id="modal-feedback" rows="6">${feedbackValue}</textarea>
+        <textarea class="feedback-area" id="modal-feedback" rows="6">${escapeHtml(feedbackValue)}</textarea>
       </div>
-      <button class="btn btn-success" id="approve-btn" onclick="approveFeedback()" ${isSent ? 'disabled' : ''}>
-        ✅ 승인 후 카카오 전송
-      </button>
+      <div class="feedback-actions">
+        <button class="btn btn-success" id="approve-btn" data-retry="${isApproved ? 'true' : 'false'}" onclick="approveFeedback()" ${isSent ? 'disabled' : ''}>
+          ${sendButtonText}
+        </button>
+        <button class="btn btn-outline copy-feedback-btn" id="copy-feedback-btn" onclick="copyFeedback()" type="button">
+          복사
+        </button>
+      </div>
     </div>
   `;
 }
@@ -874,6 +1198,55 @@ async function generateFeedback() {
   }
 }
 
+// ===== Copy Feedback =====
+async function writeClipboardText(text) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const temp = document.createElement('textarea');
+  temp.value = text;
+  temp.setAttribute('readonly', '');
+  temp.style.position = 'fixed';
+  temp.style.top = '-9999px';
+  document.body.appendChild(temp);
+  temp.select();
+
+  try {
+    const copied = document.execCommand('copy');
+    if (!copied) throw new Error('copy failed');
+  } finally {
+    temp.remove();
+  }
+}
+
+async function copyFeedback() {
+  const feedbackText = document.getElementById('modal-feedback')?.value || '';
+  const btn = document.getElementById('copy-feedback-btn');
+  const originalText = btn?.textContent.trim() || '복사';
+
+  if (!feedbackText.trim()) {
+    toast('복사할 피드백이 없습니다.', 2000);
+    return;
+  }
+
+  try {
+    await writeClipboardText(feedbackText);
+    toast('피드백을 복사했습니다.');
+    if (btn) {
+      btn.textContent = '복사됨';
+      setTimeout(() => {
+        if (document.getElementById('copy-feedback-btn') === btn) {
+          btn.textContent = originalText;
+        }
+      }, 1500);
+    }
+  } catch (e) {
+    toast('❌ 복사 실패: 브라우저 권한을 확인해 주세요.', 3000);
+  }
+}
+
 // ===== Approve & Send =====
 async function approveFeedback() {
   const btn = document.getElementById('approve-btn');
@@ -890,8 +1263,11 @@ async function approveFeedback() {
   btn.innerHTML = '<span class="spinner"></span> 전송 중...';
 
   try {
-    const result = await api(`/admin/submissions/${currentSubmissionId}/approve`, {
-      method: 'PUT',
+    const endpoint = btn.dataset.retry === 'true'
+      ? `/admin/submissions/${currentSubmissionId}/retry-send`
+      : `/admin/submissions/${currentSubmissionId}/approve`;
+    const result = await api(endpoint, {
+      method: btn.dataset.retry === 'true' ? 'POST' : 'PUT',
       body: JSON.stringify({ feedback_text: feedbackText }),
     });
     toast('✅ 피드백이 전송되었습니다!');
@@ -900,7 +1276,7 @@ async function approveFeedback() {
   } catch (e) {
     toast('❌ 전송 실패: ' + e.message, 4000);
     btn.disabled = false;
-    btn.innerHTML = '✅ 승인 후 카카오 전송';
+    btn.innerHTML = btn.dataset.retry === 'true' ? '다시 전송' : '승인 후 카카오 전송';
   }
 }
 
@@ -970,13 +1346,13 @@ async function loadParents() {
     container.innerHTML = `
       <div class="card">
         ${parents.map(p => `
-          <div class="parent-item" onclick="openParentHistory(${p.id}, '${p.child_name}')">
+          <div class="parent-item" onclick="openParentHistory(${p.id})">
             <div>
               <div class="parent-name">${p.child_name}</div>
               <div class="parent-sub">${p.level} · ${p.child_age ? p.child_age+'세' : '나이 미입력'} · 제출 ${p.submission_count}건</div>
               <div class="parent-sub" style="font-size:11px; margin-top:2px; color:#aaa">${p.phone_number || '전화번호 미등록'} · ${p.kakao_user_id}</div>
             </div>
-            <span style="color:var(--text-muted); font-size:18px;">›</span>
+            <button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); openEditParent(${p.id})">수정</button>
           </div>
         `).join('')}
       </div>`;
@@ -986,6 +1362,7 @@ async function loadParents() {
 }
 
 function openAddParent() {
+  currentParentId = null;
   document.getElementById('parent-modal-title').textContent = '학부모 추가';
   document.getElementById('parent-form').reset();
   document.getElementById('p-level').value = '표현력';
@@ -994,6 +1371,29 @@ function openAddParent() {
   });
   document.getElementById('p-kakao-id').removeAttribute('readonly');
   openModal('parent-modal');
+}
+
+async function openEditParent(parentId) {
+  currentParentId = parentId;
+  document.getElementById('parent-modal-title').textContent = '학부모 수정';
+  document.getElementById('parent-form').reset();
+  openModal('parent-modal');
+
+  try {
+    const p = await api(`/admin/parents/${parentId}`);
+    document.getElementById('p-kakao-id').value = p.kakao_user_id;
+    document.getElementById('p-kakao-id').setAttribute('readonly', 'readonly');
+    document.getElementById('p-child-name').value = p.child_name || '';
+    document.getElementById('p-phone').value = p.phone_number || '';
+    document.getElementById('p-child-age').value = p.child_age || '';
+    document.getElementById('p-level').value = p.level || '표현력';
+    document.querySelectorAll('#parent-form .level-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.level === document.getElementById('p-level').value);
+    });
+  } catch (e) {
+    toast('❌ 오류: ' + e.message, 4000);
+    closeModal('parent-modal');
+  }
 }
 
 function selectParentLevel(btn) {
@@ -1009,19 +1409,22 @@ async function saveParent(e) {
   btn.innerHTML = '<span class="spinner"></span>';
 
   try {
-    await api('/admin/parents', {
-      method: 'POST',
-      body: JSON.stringify({
-        kakao_user_id: document.getElementById('p-kakao-id').value.trim(),
-        phone_number: document.getElementById('p-phone').value.trim() || null,
-        child_name: document.getElementById('p-child-name').value.trim(),
-        child_age: parseInt(document.getElementById('p-child-age').value) || null,
-        level: document.getElementById('p-level').value,
-      }),
+    const payload = {
+      phone_number: document.getElementById('p-phone').value.trim(),
+      child_name: document.getElementById('p-child-name').value.trim(),
+      child_age: parseInt(document.getElementById('p-child-age').value) || null,
+      level: document.getElementById('p-level').value,
+    };
+    if (!currentParentId) payload.kakao_user_id = document.getElementById('p-kakao-id').value.trim();
+
+    await api(currentParentId ? `/admin/parents/${currentParentId}` : '/admin/parents', {
+      method: currentParentId ? 'PUT' : 'POST',
+      body: JSON.stringify(payload),
     });
     toast('저장되었습니다 ✅');
     closeModal('parent-modal');
     loadParents();
+    loadUploadParents();
   } catch (e) {
     toast('❌ 오류: ' + e.message, 4000);
   } finally {
@@ -1030,14 +1433,15 @@ async function saveParent(e) {
   }
 }
 
-async function openParentHistory(parentId, childName) {
-  document.getElementById('parent-history-title').textContent = `${childName} 학습 이력`;
+async function openParentHistory(parentId) {
+  document.getElementById('parent-history-title').textContent = '학습 이력';
   document.getElementById('parent-history-body').innerHTML = '<div class="loading">불러오는 중...</div>';
   openModal('parent-history-modal');
 
   try {
     const data = await api(`/admin/parents/${parentId}/history`);
     const subs = data.submissions;
+    document.getElementById('parent-history-title').textContent = `${data.parent.child_name} 학습 이력`;
 
     if (subs.length === 0) {
       document.getElementById('parent-history-body').innerHTML =
@@ -1082,7 +1486,40 @@ async function openParentHistory(parentId, childName) {
 
 // ===== Init =====
 document.addEventListener('DOMContentLoaded', () => {
+  loadUploadParents();
   loadPending();
+
+  const photoInput = document.getElementById('direct-photo-input');
+  const pasteZone = document.getElementById('paste-zone');
+
+  photoInput?.addEventListener('change', e => {
+    addDirectUploadFiles(e.target.files);
+    e.target.value = '';
+  });
+
+  pasteZone?.addEventListener('click', () => pasteZone.focus());
+  pasteZone?.addEventListener('paste', e => {
+    const items = Array.from(e.clipboardData?.items || []);
+    const imageItems = items.filter(item => item.kind === 'file' && item.type.startsWith('image/'));
+    if (imageItems.length === 0) {
+      toast('클립보드에서 이미지를 찾지 못했습니다.', 2500);
+      return;
+    }
+
+    e.preventDefault();
+    const pastedFiles = imageItems.map((item, index) => {
+      const blob = item.getAsFile();
+      if (!blob) return null;
+
+      const ext = item.type === 'image/jpeg' ? 'jpg'
+        : item.type === 'image/webp' ? 'webp'
+        : item.type === 'image/gif' ? 'gif'
+        : 'png';
+      return new File([blob], `pasted-${Date.now()}-${index + 1}.${ext}`, { type: item.type });
+    }).filter(Boolean);
+    addDirectUploadFiles(pastedFiles);
+  });
+
   // Auto-refresh pending every 60 seconds
   setInterval(() => {
     const pendingPanel = document.getElementById('panel-pending');

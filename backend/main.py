@@ -56,12 +56,6 @@ UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", "./uploads"))
 UPLOAD_DIR.mkdir(exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
 
-# Serve frontend static files
-FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
-if FRONTEND_DIR.exists():
-    app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
-
-
 @app.on_event("startup")
 def on_startup():
     """Initialize database tables on startup."""
@@ -75,6 +69,12 @@ def on_startup():
 def health_check():
     """Health check endpoint."""
     return {"status": "ok", "service": "YejinSaem"}
+
+
+# Serve frontend static files after API routes so it does not shadow them.
+FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
+if FRONTEND_DIR.exists():
+    app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
 
 
 if __name__ == "__main__":

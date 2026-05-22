@@ -1,0 +1,18 @@
+{
+  "features": {
+    "remaining-feature-development": {
+      "phase": "do",
+      "matchRate": null,
+      "iteration": 0,
+      "maxIterations": 5,
+      "documents": {
+        "plan": "docs/01-plan/features/remaining-feature-development.plan.md",
+        "design": "docs/02-design/features/remaining-feature-development.design.md",
+        "analysis": "docs/03-analysis/remaining-feature-development.analysis.md",
+        "report": "docs/04-report/remaining-feature-development.report.md"
+      },
+      "updatedAt": "2026-05-22",
+      "completedPhases": ["plan", "design", "do"]
+    }
+  }
+}

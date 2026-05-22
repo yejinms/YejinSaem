@@ -14,6 +14,11 @@ from sqlalchemy.orm import Session
 
 from database import Submission, Parent, get_db
 from services.kakao_service import build_kakao_response
+from validation import (
+    ALLOWED_IMAGE_EXTENSIONS,
+    validate_image_content,
+    verify_kakao_secret_header,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -23,18 +28,31 @@ UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", "./uploads"))
 UPLOAD_DIR.mkdir(exist_ok=True)
 
 
-async def download_image(url: str, dest_path: Path) -> bool:
-    """Download an image from a URL and save it to dest_path."""
+CONTENT_TYPE_EXTENSIONS = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/gif": ".gif",
+    "image/webp": ".webp",
+}
+
+
+async def download_image(url: str) -> tuple[bytes, str | None] | None:
+    """Download an image from a URL and return bytes plus content type."""
     try:
         async with httpx.AsyncClient(timeout=30) as client:
             response = await client.get(url)
             response.raise_for_status()
-            async with aiofiles.open(dest_path, "wb") as f:
-                await f.write(response.content)
-        return True
+            return response.content, response.headers.get("content-type", "").split(";")[0]
     except Exception as e:
         logger.error(f"Failed to download image from {url}: {e}")
-        return False
+        return None
+
+
+def image_extension_from_url_or_type(url: str, content_type: str | None) -> str:
+    ext = Path(url.split("?")[0]).suffix.lower()
+    if ext in ALLOWED_IMAGE_EXTENSIONS:
+        return ext
+    return CONTENT_TYPE_EXTENSIONS.get(content_type or "", ".jpg")
 
 
 def extract_image_url(body: dict) -> str | None:
@@ -75,7 +93,7 @@ def extract_image_url(body: dict) -> str | None:
     return None
 
 
-@router.post("/webhook")
+@router.post("/webhook", dependencies=[Depends(verify_kakao_secret_header)])
 async def kakao_webhook(request: Request, db: Session = Depends(get_db)):
     """
     Receive webhook from Kakao i Open Builder.
@@ -101,52 +119,52 @@ async def kakao_webhook(request: Request, db: Session = Depends(get_db)):
 
     # Find or note the parent (parent must be registered by admin first)
     parent = db.query(Parent).filter(Parent.kakao_user_id == kakao_user_id).first()
+    if not parent:
+        logger.info(f"Unregistered Kakao user attempted webhook: {kakao_user_id}")
+        return build_kakao_response(
+            "아직 등록된 학부모 정보가 없어요. 선생님께 카카오 사용자 ID를 알려주시면 등록 후 피드백을 받을 수 있어요."
+        )
 
     # Try to extract image URL from payload
     image_url = extract_image_url(body)
-    photo_path = None
+    if not image_url:
+        utterance = body.get("userRequest", {}).get("utterance", "")
+        logger.info(f"Text message received from {kakao_user_id}: {utterance}")
+        return build_kakao_response("안녕하세요! 글쓰기 워크시트 사진을 보내주시면 선생님이 피드백을 드릴게요 📝")
 
-    if image_url:
-        # Generate unique filename
-        ext = Path(image_url.split("?")[0]).suffix or ".jpg"
-        filename = f"{uuid.uuid4()}{ext}"
-        dest_path = UPLOAD_DIR / filename
+    downloaded = await download_image(image_url)
+    if not downloaded:
+        logger.warning(f"Could not download image from {image_url}")
+        return build_kakao_response("사진을 불러오지 못했어요. 다시 보내주세요.")
 
-        downloaded = await download_image(image_url, dest_path)
-        if downloaded:
-            photo_path = str(dest_path)
-            logger.info(f"Image saved to {photo_path}")
-        else:
-            logger.warning(f"Could not download image from {image_url}")
+    image_content, content_type = downloaded
+    try:
+        validate_image_content(image_content, content_type)
+    except HTTPException as e:
+        logger.warning(f"Rejected Kakao image from {kakao_user_id}: {e.detail}")
+        return build_kakao_response("지원하지 않는 이미지 형식이에요. JPG, PNG, GIF, WebP 사진으로 다시 보내주세요.")
 
-    # Create submission record
+    ext = image_extension_from_url_or_type(image_url, content_type)
+    filename = f"{uuid.uuid4()}{ext}"
+    dest_path = UPLOAD_DIR / filename
+    async with aiofiles.open(dest_path, "wb") as f:
+        await f.write(image_content)
+
+    photo_path = str(dest_path)
+    logger.info(f"Image saved to {photo_path}")
+
     submission = Submission(
-        parent_id=parent.id if parent else None,
+        parent_id=parent.id,
         photo_path=photo_path,
-        level=parent.level if parent else None,
+        level=parent.level,
         stage=None,
         extra_instruction=None,
         feedback_draft=None,
         status="pending",
     )
-
-    # If no parent found, we still create a submission stub with kakao_user_id stored elsewhere
-    # For now, store kakao_user_id temporarily in extra_instruction field if parent not found
-    if not parent:
-        submission.extra_instruction = f"[UNREGISTERED USER: {kakao_user_id}]"
-
     db.add(submission)
     db.commit()
     db.refresh(submission)
 
     logger.info(f"Created submission #{submission.id} for kakao_user_id={kakao_user_id}")
-
-    if image_url:
-        response_text = "사진을 받았어요! 선생님이 곧 피드백을 드릴게요 😊"
-    else:
-        # Text-only message - acknowledge but explain we need a photo
-        utterance = body.get("userRequest", {}).get("utterance", "")
-        logger.info(f"Text message received from {kakao_user_id}: {utterance}")
-        response_text = "안녕하세요! 글쓰기 워크시트 사진을 보내주시면 선생님이 피드백을 드릴게요 📝"
-
-    return build_kakao_response(response_text)
+    return build_kakao_response("사진을 받았어요! 선생님이 곧 피드백을 드릴게요 😊")
