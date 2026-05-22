@@ -3,94 +3,142 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>예진샘 관리자</title>
+  <title>생글방글 첨삭 관리자</title>
   <link rel="icon" href="data:," />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,100..900&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet" />
   <style>
-    /* ===== Reset & Base ===== */
+    /* ===== Reset & Base (Figma-inspired, DESIGN.md) ===== */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --primary: #7BAB8B;
-      --primary-dark: #5e9070;
-      --primary-light: #c5dece;
-      --bg: #f5f9f6;
-      --surface: #ffffff;
-      --border: #d6e8dc;
-      --text: #2c3e35;
-      --text-muted: #6b8878;
-      --danger: #e05c5c;
-      --warning: #e8a24a;
-      --success: #4caf80;
-      --radius: 12px;
-      --shadow: 0 2px 12px rgba(0,0,0,0.08);
-      --font: 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+      --black: #000000;
+      --white: #ffffff;
+      --glass-dark: rgba(0, 0, 0, 0.08);
+      --glass-light: rgba(255, 255, 255, 0.16);
+      --border: #ebebeb;
+      --border-input: #e2e2e2;
+      --text: #000000;
+      --text-muted: #374151;
+      --focus: #0d99ff;
+      --radius-sm: 6px;
+      --radius-md: 8px;
+      --radius-lg: 16px;
+      --radius-pill: 50px;
+      --shadow-elevated: rgba(0, 0, 0, 0.1) 0px 24px 70px 0px;
+      --font: 'Inter', 'SF Pro Display', 'Apple SD Gothic Neo', 'Noto Sans KR', system-ui, -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', 'SF Mono', ui-monospace, menlo, monospace;
+      --motion-fast: 120ms;
+      --motion-standard: 220ms;
+      --ease-standard: cubic-bezier(0.25, 0.1, 0.25, 1);
+      /* legacy aliases for JS inline styles */
+      --bg: var(--white);
+      --surface: var(--white);
+      --primary: var(--black);
+      --primary-dark: var(--black);
+      --primary-light: var(--glass-dark);
+      --success: var(--black);
+      --danger: var(--black);
     }
+    html { font-feature-settings: "kern" 1; }
     body {
       font-family: var(--font);
-      background: var(--bg);
+      background: var(--white);
       color: var(--text);
       min-height: 100vh;
-      font-size: 15px;
-      line-height: 1.6;
+      font-size: 16px;
+      font-weight: 400;
+      line-height: 1.45;
+      letter-spacing: -0.14px;
+      -webkit-font-smoothing: antialiased;
+    }
+    :focus-visible {
+      outline: 2px dashed var(--focus);
+      outline-offset: 2px;
     }
 
-    /* ===== Header ===== */
+    /* ===== Header (Top Nav) ===== */
     header {
-      background: var(--primary);
-      color: white;
-      padding: 16px 20px;
+      background: var(--white);
+      color: var(--black);
+      padding: 0 24px;
+      height: 64px;
       display: flex;
       align-items: center;
       gap: 10px;
       position: sticky;
       top: 0;
       z-index: 100;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      border-bottom: 1px solid var(--border);
     }
-    header h1 { font-size: 18px; font-weight: 700; }
-    header .subtitle { font-size: 12px; opacity: 0.8; }
+    header h1 {
+      font-size: 18px;
+      font-weight: 540;
+      letter-spacing: -0.26px;
+      line-height: 1.35;
+    }
+    header .subtitle {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 400;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
 
-    /* ===== Tabs ===== */
+    /* ===== Tabs (Segmented Tab Pill) ===== */
+    .tabs-wrap {
+      position: sticky;
+      top: 64px;
+      z-index: 90;
+      background: var(--white);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 16px 16px;
+    }
     .tabs {
       display: flex;
-      background: var(--surface);
-      border-bottom: 2px solid var(--border);
-      position: sticky;
-      top: 60px;
-      z-index: 90;
+      gap: 4px;
+      padding: 4px;
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-pill);
+      max-width: 640px;
+      margin: 0 auto;
     }
     .tab-btn {
       flex: 1;
-      padding: 14px 8px;
+      padding: 8px 12px 10px;
       border: none;
-      background: none;
+      background: var(--white);
       font-family: var(--font);
-      font-size: 14px;
-      color: var(--text-muted);
+      font-size: 15px;
+      font-weight: 480;
+      letter-spacing: -0.14px;
+      color: var(--black);
       cursor: pointer;
-      border-bottom: 3px solid transparent;
-      transition: all 0.2s;
-      font-weight: 500;
+      border-radius: var(--radius-pill);
+      transition: background var(--motion-fast) var(--ease-standard);
     }
+    .tab-btn:hover { background: var(--glass-dark); }
     .tab-btn.active {
-      color: var(--primary-dark);
-      border-bottom-color: var(--primary);
-      font-weight: 700;
+      background: var(--glass-dark);
+      font-weight: 540;
     }
 
     /* ===== Tab Panels ===== */
-    .tab-panel { display: none; padding: 16px; }
+    .tab-panel { display: none; padding: 24px 16px 32px; }
     .tab-panel.active { display: block; }
 
     /* ===== Cards ===== */
     .card {
       background: var(--surface);
-      border-radius: var(--radius);
+      border-radius: var(--radius-md);
       border: 1px solid var(--border);
-      box-shadow: var(--shadow);
-      margin-bottom: 12px;
+      margin-bottom: 16px;
       overflow: hidden;
     }
-    .card-body { padding: 14px 16px; }
+    .card-body { padding: 16px; }
 
     /* ===== Submission Item ===== */
     .submission-item {
@@ -98,61 +146,82 @@
       align-items: center;
       gap: 12px;
       cursor: pointer;
-      transition: background 0.15s;
+      transition: background var(--motion-fast) var(--ease-standard);
     }
-    .submission-item:hover { background: var(--bg); }
-    .submission-item:active { background: var(--primary-light); }
+    .submission-item:hover { background: var(--glass-dark); }
+    .submission-item:active { background: var(--glass-dark); }
 
     .thumb {
       width: 64px;
       height: 64px;
-      border-radius: 8px;
+      border-radius: var(--radius-md);
       object-fit: cover;
       flex-shrink: 0;
-      background: var(--border);
+      background: var(--glass-dark);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 28px;
+      font-size: 24px;
     }
-    .thumb img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; }
+    .thumb img { width: 100%; height: 100%; object-fit: cover; border-radius: var(--radius-md); }
 
     .submission-info { flex: 1; min-width: 0; }
-    .child-name { font-weight: 700; font-size: 15px; }
-    .sub-detail { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    .child-name {
+      font-weight: 540;
+      font-size: 16px;
+      letter-spacing: -0.14px;
+    }
+    .sub-detail {
+      font-size: 13px;
+      font-weight: 330;
+      color: var(--text-muted);
+      margin-top: 4px;
+      letter-spacing: -0.1px;
+    }
 
     .status-badge {
+      font-family: var(--font-mono);
       font-size: 11px;
-      padding: 3px 8px;
-      border-radius: 20px;
-      font-weight: 600;
+      padding: 4px 8px;
+      border-radius: var(--radius-pill);
+      font-weight: 400;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
       white-space: nowrap;
       flex-shrink: 0;
+      border: 1px solid var(--black);
     }
-    .status-pending   { background: #fff3cd; color: #856404; }
-    .status-generated { background: #cfe2ff; color: #084298; }
-    .status-approved  { background: #d1e7dd; color: #0a3622; }
-    .status-sent      { background: #d1e7dd; color: #0a3622; }
+    .status-pending   { background: var(--white); color: var(--black); }
+    .status-generated { background: var(--glass-dark); color: var(--black); border-color: transparent; }
+    .status-approved  { background: var(--black); color: var(--white); border-color: var(--black); }
+    .status-sent      { background: var(--black); color: var(--white); border-color: var(--black); }
 
-    /* ===== Section Title ===== */
+    /* ===== Section Title (Mono Label) ===== */
     .section-title {
-      font-size: 13px;
-      font-weight: 700;
-      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 400;
+      color: var(--black);
       text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin: 20px 0 10px;
+      letter-spacing: 0.6px;
+      margin: 24px 0 12px;
+      line-height: 1;
     }
     .section-title:first-child { margin-top: 0; }
 
     /* ===== Empty State ===== */
     .empty {
       text-align: center;
-      padding: 48px 20px;
+      padding: 48px 24px;
       color: var(--text-muted);
     }
-    .empty .icon { font-size: 48px; margin-bottom: 12px; }
-    .empty p { font-size: 14px; }
+    .empty .icon { font-size: 32px; margin-bottom: 16px; opacity: 0.4; }
+    .empty p {
+      font-size: 16px;
+      font-weight: 330;
+      letter-spacing: -0.14px;
+      line-height: 1.4;
+    }
 
     /* ===== Loading ===== */
     .loading {
@@ -160,18 +229,19 @@
       padding: 32px;
       color: var(--text-muted);
       font-size: 14px;
+      font-weight: 330;
     }
 
     /* ===== Direct Upload ===== */
     .direct-upload-grid {
       display: grid;
-      gap: 10px;
+      gap: 12px;
     }
     .paste-zone {
       min-height: 88px;
-      border: 2px dashed var(--border);
-      border-radius: 10px;
-      background: var(--bg);
+      border: 1px solid var(--border-input);
+      border-radius: var(--radius-lg);
+      background: var(--white);
       color: var(--text-muted);
       display: flex;
       align-items: center;
@@ -180,12 +250,16 @@
       padding: 16px;
       cursor: pointer;
       outline: none;
+      box-shadow: var(--shadow-elevated);
+      font-size: 14px;
+      font-weight: 330;
+      letter-spacing: -0.14px;
+      transition: border-color var(--motion-fast) var(--ease-standard);
     }
     .paste-zone:focus,
     .paste-zone.has-file {
-      border-color: var(--primary);
-      background: #eef7f1;
-      color: var(--primary-dark);
+      border-color: var(--black);
+      color: var(--black);
     }
     .upload-actions {
       display: grid;
@@ -203,7 +277,7 @@
       position: relative;
       min-width: 0;
       border: 1px solid var(--border);
-      border-radius: 8px;
+      border-radius: var(--radius-md);
       background: var(--surface);
       overflow: hidden;
     }
@@ -224,26 +298,30 @@
       position: absolute;
       top: 4px;
       right: 4px;
-      width: 26px;
-      height: 26px;
+      width: 36px;
+      height: 36px;
       border: none;
       border-radius: 50%;
-      background: rgba(44,62,53,0.82);
-      color: white;
-      font-size: 16px;
+      background: var(--glass-dark);
+      color: var(--black);
+      font-size: 18px;
       line-height: 1;
       cursor: pointer;
+      transition: background var(--motion-fast) var(--ease-standard);
     }
+    .upload-remove-btn:hover { background: var(--black); color: var(--white); }
     .thumb-count {
       position: absolute;
       right: 4px;
       bottom: 4px;
-      padding: 2px 6px;
-      border-radius: 10px;
-      background: rgba(44,62,53,0.82);
-      color: white;
+      padding: 2px 8px;
+      border-radius: var(--radius-pill);
+      background: var(--black);
+      color: var(--white);
+      font-family: var(--font-mono);
       font-size: 11px;
-      font-weight: 700;
+      font-weight: 400;
+      letter-spacing: 0.4px;
     }
 
     /* ===== Buttons ===== */
@@ -251,112 +329,146 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 6px;
-      padding: 12px 20px;
-      border: none;
-      border-radius: 10px;
+      gap: 8px;
+      padding: 12px 21px;
+      border: 1px solid transparent;
+      border-radius: var(--radius-md);
       font-family: var(--font);
-      font-size: 14px;
-      font-weight: 600;
+      font-size: 16px;
+      font-weight: 330;
+      letter-spacing: -0.14px;
+      line-height: 1.45;
       cursor: pointer;
-      transition: all 0.2s;
+      transition: opacity var(--motion-fast) var(--ease-standard),
+                  background var(--motion-fast) var(--ease-standard);
       width: 100%;
     }
     .btn-primary {
-      background: var(--primary);
-      color: white;
+      background: var(--black);
+      color: var(--white);
     }
-    .btn-primary:hover { background: var(--primary-dark); }
-    .btn-primary:disabled { background: #a8c8b4; cursor: not-allowed; }
+    .btn-primary:hover { opacity: 0.88; }
+    .btn-primary:disabled {
+      background: var(--glass-dark);
+      color: var(--text-muted);
+      cursor: not-allowed;
+      opacity: 1;
+    }
 
     .btn-success {
-      background: var(--success);
-      color: white;
+      background: var(--black);
+      color: var(--white);
     }
-    .btn-success:hover { background: #3d9c6a; }
-    .btn-success:disabled { background: #9fd4be; cursor: not-allowed; }
+    .btn-success:hover { opacity: 0.88; }
+    .btn-success:disabled {
+      background: var(--glass-dark);
+      color: var(--text-muted);
+      cursor: not-allowed;
+      opacity: 1;
+    }
 
     .btn-outline {
       background: transparent;
-      color: var(--primary-dark);
-      border: 2px solid var(--primary);
+      color: var(--black);
+      border-color: transparent;
+      font-size: 16px;
+      font-weight: 330;
     }
-    .btn-outline:hover { background: var(--primary-light); }
+    .btn-outline:hover { background: var(--glass-dark); }
 
     .btn-danger {
-      background: var(--danger);
-      color: white;
+      background: var(--white);
+      color: var(--black);
+      border: 1px solid var(--black);
     }
-    .btn-danger:hover { background: #c84040; }
+    .btn-danger:hover { background: var(--glass-dark); }
 
     .btn-sm {
-      padding: 8px 14px;
-      font-size: 13px;
-      border-radius: 8px;
+      padding: 8px 16px;
+      font-size: 14px;
+      border-radius: var(--radius-md);
       width: auto;
     }
 
     /* ===== Form Elements ===== */
     label {
       display: block;
-      font-size: 13px;
-      font-weight: 600;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 400;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      color: var(--black);
+      margin-bottom: 8px;
+    }
+    label small {
+      font-family: var(--font);
+      text-transform: none;
+      letter-spacing: -0.1px;
+      font-weight: 330;
       color: var(--text-muted);
-      margin-bottom: 6px;
     }
     input[type="text"],
     input[type="number"],
+    input[type="tel"],
     select,
     textarea {
       width: 100%;
-      padding: 11px 14px;
-      border: 1.5px solid var(--border);
-      border-radius: 8px;
+      padding: 12px 16px;
+      border: 1px solid var(--border-input);
+      border-radius: var(--radius-md);
       font-family: var(--font);
-      font-size: 14px;
+      font-size: 16px;
+      font-weight: 330;
+      letter-spacing: -0.14px;
       color: var(--text);
       background: var(--surface);
-      transition: border-color 0.2s;
+      transition: border-color var(--motion-fast) var(--ease-standard);
       outline: none;
     }
     input:focus, select:focus, textarea:focus {
-      border-color: var(--primary);
+      border-color: var(--black);
     }
-    textarea { resize: vertical; min-height: 100px; }
+    textarea { resize: vertical; min-height: 100px; line-height: 1.4; }
 
     .form-group { margin-bottom: 16px; }
 
-    /* ===== Level Selector ===== */
+    /* ===== Level Selector (Segmented) ===== */
     .level-selector {
       display: flex;
-      gap: 8px;
+      gap: 4px;
       margin-bottom: 4px;
+      padding: 4px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-pill);
+      background: var(--white);
     }
     .level-btn {
       flex: 1;
-      padding: 10px 6px;
-      border: 2px solid var(--border);
-      border-radius: 8px;
-      background: white;
+      padding: 8px 6px 10px;
+      border: none;
+      border-radius: var(--radius-pill);
+      background: var(--white);
       font-family: var(--font);
       font-size: 12px;
-      font-weight: 600;
+      font-weight: 480;
+      letter-spacing: -0.1px;
       cursor: pointer;
       text-align: center;
-      color: var(--text-muted);
-      transition: all 0.2s;
+      color: var(--black);
+      transition: background var(--motion-fast) var(--ease-standard);
     }
+    .level-btn:hover { background: var(--glass-dark); }
     .level-btn.active {
-      border-color: var(--primary);
-      background: var(--primary-light);
-      color: var(--primary-dark);
+      background: var(--glass-dark);
+      font-weight: 540;
     }
 
     /* ===== Modal ===== */
     .modal-overlay {
       position: fixed;
       inset: 0;
-      background: rgba(0,0,0,0.5);
+      background: rgba(0, 0, 0, 0.4);
       z-index: 200;
       display: none;
       overflow: hidden;
@@ -369,7 +481,7 @@
     }
     .modal {
       background: var(--surface);
-      border-radius: 20px 20px 0 0;
+      border-radius: var(--radius-lg) var(--radius-lg) 0 0;
       width: 100%;
       max-width: 640px;
       margin-left: auto;
@@ -380,10 +492,11 @@
       -webkit-overflow-scrolling: touch;
       overscroll-behavior: contain;
       flex-shrink: 0;
-      animation: slideUp 0.3s ease;
+      animation: slideUp var(--motion-standard) var(--ease-standard);
+      border-top: 1px solid var(--border);
     }
     @keyframes slideUp {
-      from { transform: translateY(50px); opacity: 0; }
+      from { transform: translateY(40px); opacity: 0; }
       to { transform: translateY(0); opacity: 1; }
     }
     .modal-handle {
@@ -397,27 +510,40 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 16px 20px 0;
+      padding: 16px 24px 0;
     }
-    .modal-title { font-size: 17px; font-weight: 700; }
+    .modal-title {
+      font-size: 20px;
+      font-weight: 540;
+      letter-spacing: -0.26px;
+      line-height: 1.35;
+    }
     .modal-close {
-      background: none;
+      width: 36px;
+      height: 36px;
       border: none;
-      font-size: 24px;
+      border-radius: 50%;
+      background: var(--glass-dark);
+      font-size: 18px;
       cursor: pointer;
-      color: var(--text-muted);
+      color: var(--black);
       line-height: 1;
-      padding: 4px;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background var(--motion-fast) var(--ease-standard);
     }
-    .modal-body { padding: 16px 20px; }
+    .modal-close:hover { background: var(--black); color: var(--white); }
+    .modal-body { padding: 16px 24px 24px; }
 
     /* ===== Photo Viewer ===== */
     .photo-full {
       width: 100%;
       max-height: 280px;
       object-fit: contain;
-      border-radius: 12px;
-      background: #f0f4f2;
+      border-radius: var(--radius-md);
+      background: var(--glass-dark);
       margin-bottom: 16px;
     }
     .photo-gallery {
@@ -433,20 +559,21 @@
     .no-photo {
       width: 100%;
       height: 160px;
-      background: var(--bg);
-      border-radius: 12px;
+      background: var(--glass-dark);
+      border-radius: var(--radius-md);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 40px;
+      font-size: 32px;
       margin-bottom: 16px;
+      opacity: 0.5;
     }
 
     /* ===== Child Info Card ===== */
     .child-info-card {
-      background: var(--bg);
-      border-radius: 10px;
-      padding: 12px 14px;
+      background: var(--glass-dark);
+      border-radius: var(--radius-md);
+      padding: 16px;
       margin-bottom: 16px;
     }
     .child-info-row {
@@ -461,9 +588,11 @@
 
     /* ===== Feedback Textarea ===== */
     .feedback-area {
-      background: #fffef7;
-      border-color: #e8d97a;
+      background: var(--white);
+      border-color: var(--border-input);
       min-height: 140px;
+      box-shadow: var(--shadow-elevated);
+      border-radius: var(--radius-lg);
     }
     .feedback-actions {
       display: flex;
@@ -484,19 +613,24 @@
     }
 
     .phone-warning-card {
-      background: #fff8e6;
-      border: 1px solid #f0d78c;
-      border-radius: 10px;
-      padding: 12px 14px;
+      background: var(--white);
+      border: 1px dashed var(--black);
+      border-radius: var(--radius-md);
+      padding: 16px;
       margin-bottom: 16px;
-      font-size: 13px;
-      line-height: 1.5;
-      color: #6b4e00;
+      font-size: 14px;
+      font-weight: 330;
+      line-height: 1.45;
+      letter-spacing: -0.14px;
+      color: var(--text-muted);
     }
     .phone-warning-card strong {
       display: block;
-      margin-bottom: 6px;
-      font-size: 14px;
+      margin-bottom: 8px;
+      font-size: 15px;
+      font-weight: 540;
+      color: var(--black);
+      letter-spacing: -0.14px;
     }
     .phone-warning-card .btn {
       margin-top: 10px;
@@ -508,15 +642,17 @@
       bottom: 24px;
       left: 50%;
       transform: translateX(-50%);
-      background: #2c3e35;
-      color: white;
-      padding: 12px 20px;
-      border-radius: 24px;
+      background: var(--black);
+      color: var(--white);
+      padding: 12px 21px;
+      border-radius: var(--radius-pill);
       font-size: 14px;
+      font-weight: 330;
+      letter-spacing: -0.14px;
       z-index: 500;
       white-space: nowrap;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.2);
-      animation: toastIn 0.3s ease;
+      box-shadow: var(--shadow-elevated);
+      animation: toastIn var(--motion-standard) var(--ease-standard);
     }
     @keyframes toastIn {
       from { transform: translateX(-50%) translateY(20px); opacity: 0; }
@@ -535,7 +671,17 @@
       align-items: center;
       margin-bottom: 6px;
     }
-    .history-level { font-size: 12px; background: var(--primary-light); color: var(--primary-dark); padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+    .history-level {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      background: var(--glass-dark);
+      color: var(--black);
+      padding: 4px 8px;
+      border-radius: var(--radius-pill);
+      font-weight: 400;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+    }
     .history-feedback { font-size: 13px; color: var(--text-muted); line-height: 1.5; }
     .history-feedback.truncated {
       display: -webkit-box;
@@ -555,12 +701,31 @@
     }
     .parent-item:last-child { border-bottom: none; }
     .parent-item:hover { background: var(--bg); }
-    .parent-name { font-weight: 700; font-size: 15px; }
+    .parent-name {
+      font-weight: 540;
+      font-size: 16px;
+      letter-spacing: -0.14px;
+    }
     .parent-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
     .parent-actions {
       display: flex;
       gap: 6px;
       flex-shrink: 0;
+    }
+
+    .parent-search {
+      margin-bottom: 8px;
+    }
+    .parent-search-wrap {
+      margin-bottom: 16px;
+    }
+    .parent-search-empty {
+      padding: 24px 16px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 14px;
+      font-weight: 330;
+      letter-spacing: -0.14px;
     }
 
     /* ===== Divider ===== */
@@ -571,19 +736,45 @@
       display: inline-block;
       width: 18px;
       height: 18px;
-      border: 2px solid rgba(255,255,255,0.4);
-      border-top-color: white;
+      border: 2px solid rgba(255, 255, 255, 0.35);
+      border-top-color: var(--white);
       border-radius: 50%;
       animation: spin 0.7s linear infinite;
     }
+    .btn-outline .spinner {
+      border-color: rgba(0, 0, 0, 0.2);
+      border-top-color: var(--black);
+    }
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    .sent-banner {
+      text-align: center;
+      padding: 8px 0 16px;
+      color: var(--text-muted);
+      font-weight: 540;
+      font-size: 14px;
+      letter-spacing: -0.14px;
+    }
 
     /* ===== Responsive ===== */
     @media (min-width: 640px) {
-      .modal-overlay.open { justify-content: center; }
-      .modal { border-radius: 20px; margin: auto; max-height: 90vh; }
-      .tabs { max-width: 640px; margin: 0 auto; }
-      .tab-panel { max-width: 640px; margin: 0 auto; }
+      .modal-overlay.open { justify-content: center; align-items: center; padding: 24px; }
+      .modal {
+        border-radius: var(--radius-lg);
+        margin: auto;
+        max-height: 90vh;
+        border: 1px solid var(--border);
+      }
+      .tabs-wrap { padding-left: 24px; padding-right: 24px; }
+      .tab-panel { max-width: 640px; margin: 0 auto; padding-left: 24px; padding-right: 24px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
     }
   </style>
 </head>
@@ -592,17 +783,19 @@
 <!-- Header -->
 <header>
   <div>
-    <h1>📝 예진샘 관리자</h1>
-    <div class="subtitle">글쓰기 피드백 서비스</div>
+    <h1>생글방글 첨삭 관리자</h1>
+    <div class="subtitle">Writing feedback</div>
   </div>
 </header>
 
 <!-- Tabs -->
-<nav class="tabs">
-  <button class="tab-btn active" onclick="switchTab('pending')" id="tab-pending">대기 목록</button>
-  <button class="tab-btn" onclick="switchTab('history')" id="tab-history">이력</button>
-  <button class="tab-btn" onclick="switchTab('parents')" id="tab-parents">학부모 관리</button>
-</nav>
+<div class="tabs-wrap">
+  <nav class="tabs" role="tablist" aria-label="관리 메뉴">
+    <button class="tab-btn active" role="tab" aria-selected="true" onclick="switchTab('pending')" id="tab-pending">대기 목록</button>
+    <button class="tab-btn" role="tab" aria-selected="false" onclick="switchTab('history')" id="tab-history">이력</button>
+    <button class="tab-btn" role="tab" aria-selected="false" onclick="switchTab('parents')" id="tab-parents">학부모 관리</button>
+  </nav>
+</div>
 
 <!-- Tab: Pending Submissions -->
 <div class="tab-panel active" id="panel-pending">
@@ -614,6 +807,14 @@
       </div>
       <div class="form-group" style="margin-bottom:0;">
         <label>학부모</label>
+        <input
+          type="search"
+          id="upload-parent-search"
+          class="parent-search"
+          placeholder="이름 또는 전화번호로 검색"
+          autocomplete="off"
+          aria-label="학부모 검색"
+        />
         <select id="upload-parent-select">
           <option value="">학부모를 불러오는 중...</option>
         </select>
@@ -655,6 +856,16 @@
     <div class="section-title" style="margin:0">등록된 학부모</div>
     <button class="btn btn-primary btn-sm" onclick="openAddParent()">+ 추가</button>
   </div>
+  <div class="parent-search-wrap">
+    <input
+      type="search"
+      id="parents-search"
+      class="parent-search"
+      placeholder="이름 또는 전화번호로 검색"
+      autocomplete="off"
+      aria-label="학부모 목록 검색"
+    />
+  </div>
   <div id="parents-list">
     <div class="loading">불러오는 중...</div>
   </div>
@@ -685,23 +896,23 @@
     <div class="modal-body">
       <form id="parent-form" onsubmit="saveParent(event)">
         <div class="form-group">
-          <label>전화번호 <small style="color:#6b8878">(학부모 식별 · 친구톡 발송)</small></label>
+          <label>전화번호 <small>(학부모 식별 · 친구톡 발송)</small></label>
           <input type="tel" id="p-phone" placeholder="예: 01012345678" required />
-          <small style="color:#6b8878; display:block; margin-top:6px">
+          <small style="color:var(--text-muted); display:block; margin-top:8px; font-size:13px; font-weight:330; letter-spacing:-0.1px; text-transform:none;">
             친구톡 발송용입니다. 채팅에서 번호를 묻지 않습니다 — 선생님이 여기서만 등록하세요.
           </small>
         </div>
         <div class="form-group" id="p-kakao-group">
-          <label>카카오 채널 연결 ID <small style="color:#6b8878">(botUserKey)</small></label>
+          <label>카카오 채널 연결 ID <small>(botUserKey)</small></label>
           <input type="text" id="p-kakao-id" placeholder="채널 대화 후 Railway 로그에서 복사" />
-          <small style="color:#6b8878; display:block; margin-top:6px">
+          <small style="color:var(--text-muted); display:block; margin-top:8px; font-size:13px; font-weight:330; letter-spacing:-0.1px; text-transform:none;">
             학부모가 채널에서 보낸 뒤 Deploy Logs의 <code>bot_user_key=...</code> 값을 붙여 넣으면 사진이 이 학부모로 들어옵니다.
           </small>
         </div>
         <div class="form-group">
           <label>내부 관리명</label>
           <input type="text" id="p-child-name" placeholder="예: 민준A · 구매자와 다를 수 있음" required />
-          <small style="color:#6b8878; display:block; margin-top:6px">
+          <small style="color:var(--text-muted); display:block; margin-top:8px; font-size:13px; font-weight:330; letter-spacing:-0.1px; text-transform:none;">
             선생님 화면에서만 씁니다. <strong>카카오 채팅·친구톡에는 이름이 절대 나가지 않습니다.</strong>
             (아이·학부모·구매자 실명과 달라도 됩니다)
           </small>
@@ -799,6 +1010,7 @@ let selectedLevel = null;
 let selectedStage = null;
 let directUploadFiles = [];
 let directUploadFileSeq = 0;
+let cachedParents = [];
 const ADMIN_TOKEN_KEY = 'yejinsaem_admin_token';
 const MAX_DIRECT_UPLOAD_IMAGES = 10;
 
@@ -881,9 +1093,14 @@ async function api(path, opts = {}) {
 
 // ===== Tab Switching =====
 function switchTab(tab) {
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    b.classList.remove('active');
+    b.setAttribute('aria-selected', 'false');
+  });
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-  document.getElementById('tab-' + tab).classList.add('active');
+  const activeTab = document.getElementById('tab-' + tab);
+  activeTab.classList.add('active');
+  activeTab.setAttribute('aria-selected', 'true');
   document.getElementById('panel-' + tab).classList.add('active');
 
   if (tab === 'pending') loadPending();
@@ -907,6 +1124,104 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
   });
 });
 
+// ===== Parent search =====
+function normalizeParentSearchQuery(query) {
+  return String(query || '').trim().toLowerCase();
+}
+
+function parentMatchesSearch(parent, query) {
+  const q = normalizeParentSearchQuery(query);
+  if (!q) return true;
+
+  const name = (parent.child_name || '').toLowerCase();
+  const phoneRaw = parent.phone_number || '';
+  const phoneLower = phoneRaw.toLowerCase();
+  const qDigits = q.replace(/\D/g, '');
+  const phoneDigits = phoneRaw.replace(/\D/g, '');
+
+  if (name.includes(q)) return true;
+  if (phoneLower.includes(q)) return true;
+  if (qDigits && phoneDigits.includes(qDigits)) return true;
+  return false;
+}
+
+function filterParents(parents, query) {
+  return parents.filter(p => parentMatchesSearch(p, query));
+}
+
+function renderUploadParentSelect() {
+  const select = document.getElementById('upload-parent-select');
+  if (!select) return;
+
+  const query = document.getElementById('upload-parent-search')?.value || '';
+  const previousValue = select.value;
+  const filtered = filterParents(cachedParents, query);
+
+  if (cachedParents.length === 0) {
+    select.innerHTML = '<option value="">등록된 학부모가 없습니다</option>';
+    return;
+  }
+  if (filtered.length === 0) {
+    select.innerHTML = '<option value="">검색 결과가 없습니다</option>';
+    return;
+  }
+
+  select.innerHTML = filtered.map(p => `
+    <option value="${p.id}">${escapeHtml(p.child_name)} · ${escapeHtml(p.phone_number || '전화번호 미등록')}</option>
+  `).join('');
+
+  if (filtered.some(p => String(p.id) === previousValue)) {
+    select.value = previousValue;
+  }
+}
+
+function renderParentsList() {
+  const container = document.getElementById('parents-list');
+  if (!container) return;
+
+  const query = document.getElementById('parents-search')?.value || '';
+  const filtered = filterParents(cachedParents, query);
+
+  if (cachedParents.length === 0) {
+    container.innerHTML = `
+      <div class="empty">
+        <div class="icon">👨‍👩‍👧</div>
+        <p>등록된 학부모가 없어요.<br>+ 추가 버튼으로 등록해 주세요.</p>
+      </div>`;
+    return;
+  }
+  if (filtered.length === 0) {
+    container.innerHTML = `<div class="parent-search-empty">「${escapeHtml(query)}」에 맞는 학부모가 없습니다.</div>`;
+    return;
+  }
+
+  container.innerHTML = `
+    <div class="card">
+      ${filtered.map(p => `
+        <div class="parent-item" onclick="openParentHistory(${p.id})">
+          <div>
+            <div class="parent-name">${escapeHtml(p.child_name)}</div>
+            <div class="parent-sub">${escapeHtml(p.level)} · ${p.child_age ? p.child_age+'세' : '나이 미입력'} · 제출 ${p.submission_count}건</div>
+            <div class="parent-sub" style="font-size:11px; margin-top:2px; color:${p.phone_number ? 'var(--text-muted)' : 'var(--black)'}; font-weight:${p.phone_number ? '330' : '480'}">${escapeHtml(p.phone_number || '전화번호 미등록 — 친구톡 불가')} · ${(p.kakao_user_id || '').startsWith('pending:') ? '채널 ID 미입력' : '채널 연결됨'}</div>
+          </div>
+          <div class="parent-actions">
+            <button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); openEditParent(${p.id})">수정</button>
+            <button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); deleteParent(${p.id})">삭제</button>
+          </div>
+        </div>
+      `).join('')}
+    </div>`;
+}
+
+async function refreshParentsCache() {
+  cachedParents = await api('/admin/parents');
+  renderUploadParentSelect();
+  const parentsPanel = document.getElementById('panel-parents');
+  if (parentsPanel?.classList.contains('active')) {
+    renderParentsList();
+  }
+}
+
 // ===== Direct Upload =====
 async function loadUploadParents() {
   const select = document.getElementById('upload-parent-select');
@@ -914,15 +1229,9 @@ async function loadUploadParents() {
   select.innerHTML = '<option value="">학부모를 불러오는 중...</option>';
 
   try {
-    const parents = await api('/admin/parents');
-    if (parents.length === 0) {
-      select.innerHTML = '<option value="">등록된 학부모가 없습니다</option>';
-      return;
-    }
-    select.innerHTML = parents.map(p => `
-      <option value="${p.id}">${escapeHtml(p.child_name)} · ${escapeHtml(p.phone_number || '전화번호 미등록')}</option>
-    `).join('');
+    await refreshParentsCache();
   } catch (e) {
+    cachedParents = [];
     select.innerHTML = '<option value="">학부모 로드 실패</option>';
     toast('❌ 학부모 목록 오류: ' + e.message, 4000);
   }
@@ -1172,7 +1481,7 @@ function renderSubmissionModal(s) {
       </div>
     </div>
 
-    ${isSent ? '<div style="text-align:center; padding:8px 0 16px; color: var(--success); font-weight:700;">✅ 이미 전송된 피드백입니다</div>' : ''}
+    ${isSent ? '<div class="sent-banner">이미 전송된 피드백입니다</div>' : ''}
 
     <div class="form-group">
       <label>레벨 선택</label>
@@ -1198,7 +1507,7 @@ function renderSubmissionModal(s) {
     </div>
 
     <button class="btn btn-primary" id="generate-btn" onclick="generateFeedback()" ${isSent ? 'disabled' : ''}>
-      ✨ 피드백 생성
+      피드백 생성
     </button>
 
     <div id="feedback-section" style="${feedbackValue ? '' : 'display:none'}; margin-top:20px;">
@@ -1263,7 +1572,7 @@ async function generateFeedback() {
     toast('❌ 오류: ' + e.message, 4000);
   } finally {
     btn.disabled = false;
-    btn.innerHTML = '✨ 피드백 생성';
+    btn.innerHTML = '피드백 생성';
   }
 }
 
@@ -1435,33 +1744,11 @@ async function loadParents() {
   const container = document.getElementById('parents-list');
   container.innerHTML = '<div class="loading">불러오는 중...</div>';
   try {
-    const parents = await api('/admin/parents');
-    if (parents.length === 0) {
-      container.innerHTML = `
-        <div class="empty">
-          <div class="icon">👨‍👩‍👧</div>
-          <p>등록된 학부모가 없어요.<br>+ 추가 버튼으로 등록해 주세요.</p>
-        </div>`;
-      return;
-    }
-    container.innerHTML = `
-      <div class="card">
-        ${parents.map(p => `
-          <div class="parent-item" onclick="openParentHistory(${p.id})">
-            <div>
-              <div class="parent-name">${p.child_name}</div>
-              <div class="parent-sub">${p.level} · ${p.child_age ? p.child_age+'세' : '나이 미입력'} · 제출 ${p.submission_count}건</div>
-              <div class="parent-sub" style="font-size:11px; margin-top:2px; color:${p.phone_number ? '#aaa' : '#b45309'}">${p.phone_number || '⚠ 전화번호 미등록 — 친구톡 불가'} · ${(p.kakao_user_id || '').startsWith('pending:') ? '채널 ID 미입력' : '채널 연결됨'}</div>
-            </div>
-            <div class="parent-actions">
-              <button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); openEditParent(${p.id})">수정</button>
-              <button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); deleteParent(${p.id})">삭제</button>
-            </div>
-          </div>
-        `).join('')}
-      </div>`;
+    await refreshParentsCache();
+    renderParentsList();
   } catch (e) {
-    container.innerHTML = `<div class="empty"><div class="icon">⚠️</div><p>${e.message}</p></div>`;
+    cachedParents = [];
+    container.innerHTML = `<div class="empty"><div class="icon">⚠️</div><p>${escapeHtml(e.message)}</p></div>`;
   }
 }
 
@@ -1486,8 +1773,7 @@ async function deleteParent(parentId) {
   try {
     await api(`/admin/parents/${parentId}`, { method: 'DELETE' });
     toast('삭제되었습니다');
-    loadParents();
-    loadUploadParents();
+    await refreshParentsCache();
     loadPending();
   } catch (e) {
     toast('❌ 삭제 실패: ' + e.message, 4000);
@@ -1544,8 +1830,7 @@ async function saveParent(e) {
     });
     toast('저장되었습니다 ✅');
     closeModal('parent-modal');
-    loadParents();
-    loadUploadParents();
+    await refreshParentsCache();
     if (currentSubmissionId && document.getElementById('submission-modal').classList.contains('open')) {
       const s = await api(`/admin/submissions/${currentSubmissionId}`);
       renderSubmissionModal(s);
@@ -1613,6 +1898,9 @@ async function openParentHistory(parentId) {
 document.addEventListener('DOMContentLoaded', () => {
   loadUploadParents();
   loadPending();
+
+  document.getElementById('upload-parent-search')?.addEventListener('input', renderUploadParentSelect);
+  document.getElementById('parents-search')?.addEventListener('input', renderParentsList);
 
   const photoInput = document.getElementById('direct-photo-input');
   const pasteZone = document.getElementById('paste-zone');
