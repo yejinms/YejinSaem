@@ -17,6 +17,7 @@ UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", "./uploads"))
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 from database import Parent, Submission, get_db
+from datetime_utils import to_utc_iso
 from services.claude_service import generate_feedback
 from services.outbound_privacy import sanitize_channel_feedback
 from services.kakao_service import send_feedback_message
@@ -72,7 +73,7 @@ def serialize_parent(parent: Parent) -> dict:
         "child_name": parent.child_name,
         "child_age": parent.child_age,
         "level": parent.level,
-        "created_at": parent.created_at.isoformat() if parent.created_at else None,
+        "created_at": to_utc_iso(parent.created_at),
     }
 
 
@@ -115,7 +116,7 @@ def serialize_submission(submission: Submission, include_parent_created_at: bool
             "level": parent.level,
         }
         if include_parent_created_at:
-            parent_payload["created_at"] = parent.created_at.isoformat() if parent.created_at else None
+            parent_payload["created_at"] = to_utc_iso(parent.created_at)
 
     photo_paths = get_submission_photo_paths(submission)
     return {
@@ -127,8 +128,8 @@ def serialize_submission(submission: Submission, include_parent_created_at: bool
         "stage": submission.stage,
         "extra_instruction": submission.extra_instruction,
         "feedback_draft": submission.feedback_draft,
-        "created_at": submission.created_at.isoformat() if submission.created_at else None,
-        "updated_at": submission.updated_at.isoformat() if submission.updated_at else None,
+        "created_at": to_utc_iso(submission.created_at),
+        "updated_at": to_utc_iso(submission.updated_at),
         "parent": parent_payload,
     }
 
@@ -233,6 +234,7 @@ async def upload_submission(
         "photo_path": photo_paths[0],
         "photo_paths": photo_paths,
         "status": "pending",
+        "created_at": to_utc_iso(submission.created_at),
     }
 
 
@@ -409,7 +411,7 @@ def list_parents(db: Session = Depends(get_db)):
             "child_name": p.child_name,
             "child_age": p.child_age,
             "level": p.level,
-            "created_at": p.created_at.isoformat() if p.created_at else None,
+            "created_at": to_utc_iso(p.created_at),
             "submission_count": len(p.submissions),
         }
         for p in parents
@@ -559,7 +561,7 @@ def get_parent_history(
                 "feedback_draft": s.feedback_draft,
                 "photo_path": serialize_submission(s)["photo_path"],
                 "photo_paths": serialize_submission(s)["photo_paths"],
-                "created_at": s.created_at.isoformat() if s.created_at else None,
+                "created_at": to_utc_iso(s.created_at),
             }
             for s in submissions
         ],

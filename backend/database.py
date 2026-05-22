@@ -5,6 +5,8 @@ database.py - SQLAlchemy models and database initialization
 import os
 from datetime import datetime
 
+from datetime_utils import utc_now_naive
+
 from sqlalchemy import (
     Column,
     DateTime,
@@ -44,7 +46,7 @@ class Parent(Base):
         nullable=False,
         default="표현력",
     )
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now_naive)
 
     submissions = relationship("Submission", back_populates="parent")
 
@@ -64,8 +66,8 @@ class Submission(Base):
         nullable=False,
         default="pending",
     )
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now_naive)
+    updated_at = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive)
 
     parent = relationship("Parent", back_populates="submissions")
 
