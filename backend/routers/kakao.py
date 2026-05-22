@@ -312,4 +312,4 @@ async def _handle_kakao_webhook(body: dict, db: Session) -> Response:
     db.refresh(submission)
 
     logger.info(f"Created submission #{submission.id} for kakao_user_id={kakao_user_id}")
-    return _skill_json("사진을 받았어요! 담당 선생님이 확인 후 안내드릴게요.")
+    return _skill_json("사진을 받았어요! 선생님 확인 후 평균 3시간 이내에 상세한 피드백을 전달드릴게요. 감사합니다 :)")
