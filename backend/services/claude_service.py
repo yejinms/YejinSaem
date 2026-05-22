@@ -48,23 +48,13 @@ def generate_feedback(
     image_path: str | list[str],
     level_key: str,
     stage_num: int,
-    child_name: str,
     extra_instruction: str = "",
     previous_feedbacks: list = None,
 ) -> str:
     """
     Generate writing feedback using Claude vision.
 
-    Args:
-        image_path: Path or paths to the uploaded worksheet image
-        level_key: One of '표현력', '초등기초', '초등심화'
-        stage_num: Stage number 1-10
-        child_name: Child's name (kept for API compatibility; not sent to the model)
-        extra_instruction: Optional additional instructions from teacher
-        previous_feedbacks: List of previous feedback texts to avoid repetition
-
-    Returns:
-        Generated feedback text as a string
+    Registration names are never passed to the model (privacy).
     """
     api_key = os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
@@ -80,7 +70,6 @@ def generate_feedback(
     user_prompt = get_feedback_user_prompt(
         level_key=level_key,
         stage_num=stage_num,
-        child_name=child_name,
         extra_instruction=extra_instruction,
         previous_feedbacks=previous_feedbacks or [],
     )

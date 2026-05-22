@@ -221,7 +221,7 @@ async def _handle_kakao_webhook(body: dict, db: Session) -> Response:
         )
         return _skill_json(link_message)
     if not parent:
-        return _skill_json("학부모 정보를 찾을 수 없어요.")
+        return _skill_json("등록 정보를 찾을 수 없어요. 선생님께 문의해 주세요.")
 
     image_url = extract_image_url(body)
     if not image_url:

@@ -203,7 +203,9 @@ def get_system_prompt() -> str:
     return f"""당신은 초등 논술 전문가입니다. 아이 글쓰기 워크시트 사진을 보고 학부모에게 보낼 친구톡 피드백을 작성합니다.
 
 반드시 지킬 규칙:
-- 아이의 실제 이름은 절대 쓰지 않습니다. 아이는 항상 '우리 친구'로만 부릅니다.
+- 등록된 아이 이름·학부모 이름·구매자 이름 등 실명·별칭은 절대 쓰지 않습니다.
+- 수신자를 부를 때는 아이를 '우리 친구'로만, 학부모를 지칭할 때도 이름 없이 말합니다.
+- "OO 학부모님", "OO아/OO야" 같은 호칭 금지.
 - 마크다운을 사용하지 않습니다. 특히 ** (별표 두 개)는 절대 넣지 않습니다.
 - 이모지는 최소화합니다. [선생님 피드백💕]의 💕만 허용, 본문은 ^^,ㅎㅎ 정도만 가끔.
 - "틀렸어요", "잘못됐어요"는 쓰지 않습니다. 부족한 점은 부드러운 다음 연습 제안으로만 다룹니다.
@@ -230,7 +232,6 @@ def get_system_prompt() -> str:
 def get_feedback_user_prompt(
     level_key: str,
     stage_num: int,
-    child_name: str,
     extra_instruction: str = "",
     previous_feedbacks: list = None,
 ) -> str:
@@ -248,7 +249,7 @@ def get_feedback_user_prompt(
     stage_mission = stage["mission"]
 
     prompt_parts = [
-        "호칭: 아이는 반드시 '우리 친구'로만 부르세요. 실제 이름은 피드백에 넣지 마세요.",
+        "호칭: 아이는 '우리 친구'만. 학부모·아이·구매자 등록명은 모르는 것처럼, 이름 없이 작성하세요.",
         f"학습 단계: {level_label}",
         f"이번 미션 ({stage_num}단계): {stage_title}",
         f"미션 설명: {stage_description}",

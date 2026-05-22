@@ -148,6 +148,20 @@ def test_kakao_webhook_relinks_when_same_bot_enters_different_phone(monkeypatch)
     db.close()
 
 
+def test_kakao_channel_messages_never_include_internal_name():
+    create_parent("pending:01088887777", phone_number="01088887777")
+    db = SessionLocal()
+    parent = db.query(Parent).filter(Parent.phone_number == "01088887777").one()
+    parent.child_name = "비밀관리명"
+    db.commit()
+    db.close()
+
+    res = client.post("/kakao/webhook", json=kakao_payload("name-check-bot", "01088887777"))
+    text = res.json()["template"]["outputs"][0]["simpleText"]["text"]
+    assert "비밀관리명" not in text
+    assert "학부모님" not in text
+
+
 def test_kakao_webhook_links_parent_by_phone_then_accepts_image(monkeypatch):
     create_parent("pending:01099998888", phone_number="01099998888")
 

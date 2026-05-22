@@ -116,13 +116,9 @@ def send_message(phone_number: str, message_text: str) -> dict:
         return {"success": False, "error": str(e)}
 
 
-def send_feedback_message(phone_number: str, child_name: str, feedback_text: str) -> dict:
-    """학부모에게 피드백 전송. child_name은 API 호환용이며 메시지에는 넣지 않음."""
-    del child_name
-    message = (
-        f"{feedback_text}\n\n"
-    )
-    return send_message(phone_number, message)
+def send_feedback_message(phone_number: str, feedback_text: str) -> dict:
+    """친구톡으로 피드백 발송 (등록명·호칭 없음)."""
+    return send_message(phone_number, feedback_text)
 
 
 def build_kakao_response(text: str) -> dict:

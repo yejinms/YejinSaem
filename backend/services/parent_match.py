@@ -67,7 +67,7 @@ def resolve_parent(
         if not target:
             return (
                 parent,
-                "등록된 번호가 아니에요. 선생님께 사전 등록된 휴대폰 번호인지 확인해 주세요.",
+                "등록된 번호가 아니에요. 선생님께 연락처 등록 여부를 확인해 주세요.",
                 False,
             )
         _link_bot_to_parent(db, bot_user_key, target)
@@ -80,7 +80,7 @@ def resolve_parent(
         target = db.query(Parent).filter(Parent.phone_number == phone).first()
         if not target:
             return None, (
-                "등록된 번호가 아니에요. 선생님께 사전 등록된 휴대폰 번호인지 확인해 주세요."
+                "등록된 번호가 아니에요. 선생님께 연락처 등록 여부를 확인해 주세요."
             ), False
         _link_bot_to_parent(db, bot_user_key, target)
         return target, None, True

@@ -18,6 +18,7 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 from database import Parent, Submission, get_db
 from services.claude_service import generate_feedback
+from services.outbound_privacy import sanitize_channel_feedback
 from services.kakao_service import send_feedback_message
 from services.parent_match import is_pending_kakao_user_id, pending_kakao_user_id
 from validation import (
@@ -150,10 +151,10 @@ def send_submission_feedback(submission: Submission, feedback_text: str, db: Ses
         )
 
     try:
+        safe_feedback = sanitize_channel_feedback(final_feedback, parent)
         result = send_feedback_message(
             phone_number=parent.phone_number,
-            child_name=parent.child_name,
-            feedback_text=final_feedback,
+            feedback_text=safe_feedback,
         )
     except Exception as e:
         logger.error(f"Kakao send raised for submission {submission.id}: {e}")
@@ -296,13 +297,15 @@ def generate_submission_feedback(
     previous_feedbacks = [rs.feedback_draft for rs in recent_submissions if rs.feedback_draft]
 
     try:
-        feedback_text = generate_feedback(
-            image_path=photo_paths,
-            level_key=body.level,
-            stage_num=body.stage,
-            child_name=parent.child_name,
-            extra_instruction=body.extra_instruction or "",
-            previous_feedbacks=previous_feedbacks,
+        feedback_text = sanitize_channel_feedback(
+            generate_feedback(
+                image_path=photo_paths,
+                level_key=body.level,
+                stage_num=body.stage,
+                extra_instruction=body.extra_instruction or "",
+                previous_feedbacks=previous_feedbacks,
+            ),
+            parent,
         )
     except FileNotFoundError as e:
         raise HTTPException(status_code=400, detail=str(e))
