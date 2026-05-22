@@ -365,6 +365,36 @@ def retry_send_submission(
     return send_submission_feedback(s, body.feedback_text or s.feedback_draft, db)
 
 
+@router.post("/submissions/{submission_id}/mark-sent")
+def mark_submission_sent_manually(
+    submission_id: int,
+    body: ApproveRequest,
+    db: Session = Depends(get_db),
+):
+    """Mark feedback as sent without calling Solapi (e.g. sent manually in Kakao)."""
+    s = db.query(Submission).filter(Submission.id == submission_id).first()
+    if not s:
+        raise HTTPException(status_code=404, detail="Submission not found")
+
+    if s.status == "sent":
+        raise HTTPException(status_code=400, detail="이미 전송 완료 처리된 피드백입니다.")
+
+    final_feedback = (body.feedback_text or s.feedback_draft or "").strip()
+    if not final_feedback:
+        raise HTTPException(status_code=400, detail="피드백 내용을 입력해주세요.")
+
+    s.feedback_draft = final_feedback
+    s.status = "sent"
+    db.commit()
+    db.refresh(s)
+
+    return {
+        "id": s.id,
+        "status": "sent",
+        "message": "직접 전송 완료로 처리되었습니다.",
+    }
+
+
 # ---------- Parent endpoints ----------
 
 @router.get("/parents")

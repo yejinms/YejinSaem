@@ -375,6 +375,51 @@ def test_approve_failure_preserves_feedback_and_sets_approved(monkeypatch):
     assert saved.feedback_draft == "수정한 피드백입니다."
 
 
+def test_mark_sent_manually_without_kakao():
+    parent_id = create_parent(phone_number="01012345678")
+    db = SessionLocal()
+    submission = Submission(
+        parent_id=parent_id,
+        status="generated",
+        feedback_draft="직접 보낸 피드백",
+    )
+    db.add(submission)
+    db.commit()
+    db.refresh(submission)
+    submission_id = submission.id
+    db.close()
+
+    res = client.post(
+        f"/admin/submissions/{submission_id}/mark-sent",
+        json={"feedback_text": "최종 피드백 문구"},
+    )
+    assert res.status_code == 200
+    assert res.json()["status"] == "sent"
+
+    db = SessionLocal()
+    saved = db.query(Submission).filter(Submission.id == submission_id).one()
+    db.close()
+    assert saved.status == "sent"
+    assert saved.feedback_draft == "최종 피드백 문구"
+
+
+def test_mark_sent_manually_rejects_already_sent():
+    parent_id = create_parent()
+    db = SessionLocal()
+    submission = Submission(
+        parent_id=parent_id,
+        status="sent",
+        feedback_draft="완료",
+    )
+    db.add(submission)
+    db.commit()
+    submission_id = submission.id
+    db.close()
+
+    res = client.post(f"/admin/submissions/{submission_id}/mark-sent", json={})
+    assert res.status_code == 400
+
+
 def test_retry_send_success_sets_sent(monkeypatch):
     parent_id = create_parent(phone_number="01012345678")
     db = SessionLocal()
