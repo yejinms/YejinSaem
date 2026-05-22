@@ -27,7 +27,6 @@ SOLAPI_API_SECRET=...
 SOLAPI_SENDER_KEY=...
 SOLAPI_SENDER_PHONE=01012345678
 ADMIN_PASSWORD=change-this
-KAKAO_CHANNEL_SECRET=optional-shared-secret
 ```
 
 `ADMIN_PASSWORD` protects `/admin/*` endpoints when set. The browser dashboard asks for this password and stores it in `sessionStorage` for the current tab.
@@ -57,18 +56,24 @@ Open:
 
 Admins can also create a submission without Kakao. In the pending tab, select a parent, choose an image file or paste an image from the clipboard, then create the submission. The generated submission opens the same feedback workflow.
 
-## Kakao Webhook
+## Deploy on Railway
 
-Configure Kakao Open Builder to call:
+Deploy from the **repository root** (see `railway.toml`). Do not set Root Directory to `backend` only.
+
+1. Connect the GitHub repo on [Railway](https://railway.com/).
+2. Add a Volume mounted at `/data` and set `DATABASE_URL=sqlite:////data/yejinsaem.db`, `UPLOAD_DIR=/data/uploads`.
+3. Copy variables from `backend/.env` into Railway **Variables** (never commit secrets).
+4. **Generate Domain** under Networking.
+
+Step-by-step (Korean): [docs/railway-deploy.md](docs/railway-deploy.md)
+
+## Kakao Webhook (Open Builder)
+
+After Railway gives you a public HTTPS domain, set the skill Endpoint URL to:
 
 ```text
-POST https://<your-domain>/kakao/webhook
+https://<your-railway-domain>/kakao/webhook
 ```
-
-If you configure `KAKAO_CHANNEL_SECRET`, include the same value in either:
-
-- `X-Kakao-Secret`
-- `X-Kakao-Channel-Secret`
 
 Unregistered Kakao users do not create submissions. They receive a registration-needed response.
 
