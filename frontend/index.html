@@ -1118,7 +1118,6 @@ const MAX_DIRECT_UPLOAD_IMAGES = 10;
 
 // ===== Utility =====
 const PENDING_REFRESH_MS = 15000;
-const RELATIVE_TIME_TICK_MS = 30000;
 
 function parseApiDate(isoString) {
   if (!isoString) return null;
@@ -1128,40 +1127,16 @@ function parseApiDate(isoString) {
   return new Date(`${s}Z`);
 }
 
+/** 통일 형식: YY/MM/DD HH:MM (로컬 시각) */
 function formatDate(isoString) {
   const d = parseApiDate(isoString);
   if (!d || Number.isNaN(d.getTime())) return '-';
-  const now = new Date();
-  const diff = now - d;
-  if (diff < 0) return '방금 전';
-  if (diff < 60000) return '방금 전';
-  if (diff < 3600000) return `${Math.floor(diff / 60000)}분 전`;
-  if (diff < 86400000) return `${Math.floor(diff / 3600000)}시간 전`;
-  return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
-}
-
-function formatAbsoluteDate(isoString) {
-  const d = parseApiDate(isoString);
-  if (!d || Number.isNaN(d.getTime())) return '-';
-  return d.toLocaleString('ko-KR', {
-    month: 'numeric',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  });
-}
-
-function relativeTimeHtml(isoString) {
-  if (!isoString) return '-';
-  return `<span class="js-relative-time" data-created-at="${escapeHtml(isoString)}">${formatDate(isoString)}</span>`;
-}
-
-function refreshRelativeTimes() {
-  document.querySelectorAll('.js-relative-time[data-created-at]').forEach(el => {
-    const next = formatDate(el.dataset.createdAt);
-    if (next && el.textContent !== next) el.textContent = next;
-  });
+  const yy = String(d.getFullYear()).slice(-2);
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mi = String(d.getMinutes()).padStart(2, '0');
+  return `${yy}/${mm}/${dd} ${hh}:${mi}`;
 }
 
 function statusLabel(status) {
@@ -1533,7 +1508,7 @@ function renderSubmissionList(container, submissions) {
           ${photoHtml}
           <div class="submission-info">
             <div class="child-name">${childName}</div>
-            <div class="sub-detail">${level} · ${stage} · ${relativeTimeHtml(s.created_at)}</div>
+            <div class="sub-detail">${level} · ${stage} · ${formatDate(s.created_at)}</div>
             <div class="sub-detail" style="margin-top:2px">${parentName}</div>
           </div>
           <span class="status-badge status-${s.status}">${statusLabel(s.status)}</span>
@@ -1621,7 +1596,7 @@ function renderSubmissionModal(s) {
       </div>
       <div class="child-info-row">
         <span class="label">제출 시각</span>
-        <span class="value">${relativeTimeHtml(s.created_at)} <span style="color:var(--text-muted); font-size:14px">(${formatAbsoluteDate(s.created_at)})</span></span>
+        <span class="value">${formatDate(s.created_at)}</span>
       </div>
     </div>
 
@@ -1860,7 +1835,7 @@ async function loadHistory() {
         <div class="history-item">
           <div class="history-meta">
             <span class="history-level">${s.level || '-'} ${s.stage ? s.stage+'단계' : ''}</span>
-            <span style="font-size:14px; color:var(--text-muted)">${relativeTimeHtml(s.created_at)}</span>
+            <span style="font-size:14px; color:var(--text-muted)">${formatDate(s.created_at)}</span>
           </div>
           <div style="margin-bottom:4px">
             <span class="status-badge status-${s.status}">${statusLabel(s.status)}</span>
@@ -2023,7 +1998,7 @@ async function openParentHistory(parentId) {
           <div class="history-item" onclick="openSubmission(${s.id}); closeModal('parent-history-modal');" style="cursor:pointer">
             <div class="history-meta">
               <span class="history-level">${s.level || '-'} ${s.stage ? s.stage+'단계' : ''}</span>
-              <span style="font-size:14px; color:var(--text-muted)">${relativeTimeHtml(s.created_at)}</span>
+              <span style="font-size:14px; color:var(--text-muted)">${formatDate(s.created_at)}</span>
             </div>
             <div style="margin-bottom:6px">
               <span class="status-badge status-${s.status}">${statusLabel(s.status)}</span>
@@ -2079,8 +2054,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }).filter(Boolean);
     addDirectUploadFiles(pastedFiles);
   });
-
-  setInterval(refreshRelativeTimes, RELATIVE_TIME_TICK_MS);
 
   setInterval(() => {
     const pendingPanel = document.getElementById('panel-pending');
