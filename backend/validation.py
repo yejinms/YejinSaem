@@ -98,5 +98,8 @@ def verify_kakao_secret_header(
         return
 
     provided = x_kakao_secret or x_kakao_channel_secret
-    if not provided or not hmac.compare_digest(provided, secret):
+    # Open Builder does not send custom headers; only reject when a wrong secret is sent.
+    if not provided:
+        return
+    if not hmac.compare_digest(provided, secret):
         raise HTTPException(status_code=401, detail="Invalid Kakao webhook secret")

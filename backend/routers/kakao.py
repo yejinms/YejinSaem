@@ -7,10 +7,12 @@ import os
 import uuid
 from pathlib import Path
 
+import json
+
 import aiofiles
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from database import Submission, Parent, get_db
@@ -29,13 +31,10 @@ UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", "./uploads"))
 UPLOAD_DIR.mkdir(exist_ok=True)
 
 
-def _skill_json(text: str, status_code: int = 200) -> JSONResponse:
+def _skill_json(text: str, status_code: int = 200) -> Response:
     """Always return Open Builder skill response shape (never FastAPI error JSON)."""
-    return JSONResponse(
-        status_code=status_code,
-        content=build_kakao_response(text),
-        media_type="application/json; charset=utf-8",
-    )
+    body = json.dumps(build_kakao_response(text), ensure_ascii=False)
+    return Response(content=body, status_code=status_code, media_type="application/json")
 
 
 CONTENT_TYPE_EXTENSIONS = {
@@ -164,8 +163,12 @@ async def kakao_webhook(request: Request, db: Session = Depends(get_db)):
         return _skill_json("잠시 오류가 발생했어요. 잠시 후 다시 시도해 주세요.")
 
 
-async def _handle_kakao_webhook(body: dict, db: Session) -> JSONResponse:
+async def _handle_kakao_webhook(body: dict, db: Session) -> Response:
     logger.info(f"Kakao webhook received: {body}")
+
+    if not isinstance(body, dict):
+        logger.warning("Kakao webhook body is not a JSON object: %r", body)
+        return _skill_json("요청 형식을 읽을 수 없어요. 스킬 테스트 JSON을 확인해 주세요.")
 
     kakao_user_id = (
         body.get("userRequest", {})

@@ -128,6 +128,7 @@ def send_feedback_message(phone_number: str, child_name: str, feedback_text: str
 def build_kakao_response(text: str) -> dict:
     return {
         "version": "2.0",
+        "data": {"sentence": text},
         "template": {
             "outputs": [{"simpleText": {"text": text}}]
         },
