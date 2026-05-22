@@ -202,7 +202,10 @@ def generate_submission_feedback(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Claude API error for submission {submission_id}: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to generate feedback: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"피드백 생성 중 오류가 발생했습니다: {str(e)}",
+        )
 
     # Update submission
     s.level = body.level
@@ -317,8 +320,6 @@ def create_or_update_parent(body: ParentCreate, db: Session = Depends(get_db)):
         existing.child_name = body.child_name
         existing.child_age = body.child_age
         existing.level = body.level
-        if body.phone_number is not None:
-            existing.phone_number = body.phone_number
         db.commit()
         db.refresh(existing)
         parent = existing

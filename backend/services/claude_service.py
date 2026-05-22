@@ -67,30 +67,40 @@ def generate_feedback(
         previous_feedbacks=previous_feedbacks or [],
     )
 
-    # Call Claude with vision
-    response = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=2048,
-        system=get_system_prompt(),
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": media_type,
-                            "data": image_data,
+    try:
+        response = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=2048,
+            system=get_system_prompt(),
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": media_type,
+                                "data": image_data,
+                            },
                         },
-                    },
-                    {
-                        "type": "text",
-                        "text": user_prompt,
-                    },
-                ],
-            }
-        ],
-    )
+                        {
+                            "type": "text",
+                            "text": user_prompt,
+                        },
+                    ],
+                }
+            ],
+        )
+    except anthropic.AuthenticationError as e:
+        raise ValueError(
+            "Anthropic API 키가 유효하지 않습니다. backend/.env의 ANTHROPIC_API_KEY를 확인하고 서버를 재시작해 주세요."
+        ) from e
+    except anthropic.APIStatusError as e:
+        if e.status_code == 401:
+            raise ValueError(
+                "Anthropic API 인증에 실패했습니다. API 키를 확인해 주세요."
+            ) from e
+        raise
 
     return response.content[0].text
