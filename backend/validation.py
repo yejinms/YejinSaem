@@ -49,6 +49,18 @@ def validate_level(level: str) -> None:
         )
 
 
+def validate_levels(levels: list[str]) -> list[str]:
+    from levels_utils import normalize_levels
+
+    try:
+        return normalize_levels(levels)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid levels. Must be one or more of: {VALID_LEVELS}",
+        ) from e
+
+
 def validate_child_age(age: int | None) -> None:
     if age is not None and not (5 <= age <= 15):
         raise HTTPException(status_code=400, detail="아이 나이는 5세에서 15세 사이로 입력해주세요.")

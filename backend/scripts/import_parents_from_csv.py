@@ -2,9 +2,12 @@
 """
 Import parents from Google Sheets CSV export (수신자 리스트).
 
+- 채널=카톡만 포함
+- 같은 전화번호의 여러 상품 행 → 레벨 합집합
+- 패키지 → 표현력 + 초등기초 + 초등심화
+
 Example:
   cd backend
-  export $(grep -v '^#' .env | xargs)  # optional: ADMIN_PASSWORD, etc.
   python scripts/import_parents_from_csv.py \\
     --csv "/path/to/수신자 리스트.csv" \\
     --channel 카톡 \\
@@ -28,15 +31,8 @@ except ImportError:
     print("httpx required: pip install httpx", file=sys.stderr)
     sys.exit(1)
 
-PRODUCT_TO_LEVEL = {
-    "표현력": "표현력",
-    "기초": "초등기초",
-    "심화": "초등심화",
-    "패키지": "표현력",
-    "": "표현력",
-}
-
-LEVEL_PRIORITY = {"초등심화": 3, "초등기초": 2, "표현력": 1}
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from levels_utils import levels_from_sheet_rows  # noqa: E402
 
 
 def load_dotenv(path: Path) -> None:
@@ -64,30 +60,21 @@ def clean_name(value: str) -> str:
     return name or (value or "").strip()
 
 
-def parse_week(value: str) -> int:
-    text = (value or "").strip()
-    if text == "발송 완료":
-        return 0
-    try:
-        return int(text)
-    except ValueError:
-        return 0
-
-
-def product_to_level(product: str) -> str:
-    key = (product or "").strip()
-    return PRODUCT_TO_LEVEL.get(key, "표현력")
-
-
-def pick_row(rows: list[dict]) -> dict:
+def pick_name_row(rows: list[dict]) -> dict:
+    """Prefer the row with the highest numeric send week for display name."""
     best = rows[0]
-    best_score = (-1, -1)
+    best_week = -1
     for row in rows:
-        level = product_to_level(row.get("상품", ""))
-        week = parse_week(row.get("마지막 발송 주차(첫가입시 0)", ""))
-        score = (week, LEVEL_PRIORITY.get(level, 0))
-        if score > best_score:
-            best_score = score
+        text = (row.get("마지막 발송 주차(첫가입시 0)") or "").strip()
+        if text == "발송 완료":
+            week = 0
+        else:
+            try:
+                week = int(text)
+            except ValueError:
+                week = 0
+        if week >= best_week:
+            best_week = week
             best = row
     return best
 
@@ -107,12 +94,14 @@ def load_kakao_parents(csv_path: Path, channel: str) -> list[dict]:
 
     parents = []
     for phone, phone_rows in grouped.items():
-        row = pick_row(phone_rows)
+        name_row = pick_name_row(phone_rows)
+        levels = levels_from_sheet_rows(phone_rows)
         parents.append(
             {
                 "phone_number": phone,
-                "child_name": clean_name(row.get("구매자 ID", "")),
-                "level": product_to_level(row.get("상품", "")),
+                "child_name": clean_name(name_row.get("구매자 ID", "")),
+                "levels": levels,
+                "level": levels[0],
             }
         )
     parents.sort(key=lambda p: p["child_name"])
@@ -161,13 +150,14 @@ def main() -> int:
         return 1
 
     parents = load_kakao_parents(args.csv, args.channel)
-    print(f"channel={args.channel!r} -> {len(parents)} unique parents")
+    multi = [p for p in parents if len(p["levels"]) > 1]
+    print(f"channel={args.channel!r} -> {len(parents)} unique parents ({len(multi)} with 2+ levels)")
 
     if args.dry_run:
-        for p in parents[:5]:
+        for p in parents[:8]:
             print(" ", p)
-        if len(parents) > 5:
-            print(f"  ... and {len(parents) - 5} more")
+        if len(parents) > 8:
+            print(f"  ... and {len(parents) - 8} more")
         return 0
 
     admin_password = os.getenv("ADMIN_PASSWORD", "").strip()

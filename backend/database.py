@@ -2,10 +2,11 @@
 database.py - SQLAlchemy models and database initialization
 """
 
+import logging
 import os
-from datetime import datetime
 
 from datetime_utils import utc_now_naive
+from levels_utils import apply_parent_levels, parse_parent_levels_json
 
 from sqlalchemy import (
     Column,
@@ -16,7 +17,11 @@ from sqlalchemy import (
     String,
     Text,
     create_engine,
+    inspect,
+    text,
 )
+
+logger = logging.getLogger(__name__)
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
 
@@ -46,6 +51,7 @@ class Parent(Base):
         nullable=False,
         default="표현력",
     )
+    levels = Column(Text, nullable=True)  # JSON array: ["표현력","초등기초",...]
     created_at = Column(DateTime, default=utc_now_naive)
 
     submissions = relationship("Submission", back_populates="parent")
@@ -81,6 +87,32 @@ def get_db():
         db.close()
 
 
+def _migrate_parent_levels_column() -> None:
+    inspector = inspect(engine)
+    if "parents" not in inspector.get_table_names():
+        return
+    columns = {col["name"] for col in inspector.get_columns("parents")}
+    if "levels" in columns:
+        return
+
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE parents ADD COLUMN levels TEXT"))
+    logger.info("Added parents.levels column")
+
+    db = SessionLocal()
+    try:
+        parents = db.query(Parent).all()
+        for parent in parents:
+            if parent.levels:
+                continue
+            levels = parse_parent_levels_json(None, parent.level)
+            apply_parent_levels(parent, levels)
+        db.commit()
+    finally:
+        db.close()
+
+
 def init_db():
     """Create all tables if they don't exist."""
     Base.metadata.create_all(bind=engine)
+    _migrate_parent_levels_column()

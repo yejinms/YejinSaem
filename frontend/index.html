@@ -999,13 +999,12 @@
           <input type="number" id="p-child-age" placeholder="예: 8" min="5" max="15" />
         </div>
         <div class="form-group">
-          <label>현재 레벨</label>
-          <div class="level-selector">
+          <label>수강 레벨 <small style="color:var(--text-muted); font-weight:400">(복수 선택 · 패키지는 3개 모두)</small></label>
+          <div class="level-selector" id="parent-level-btns">
             <button type="button" class="level-btn active" data-level="표현력" onclick="selectParentLevel(this)">표현력<br><small style="font-weight:400">7~8세</small></button>
             <button type="button" class="level-btn" data-level="초등기초" onclick="selectParentLevel(this)">초등기초<br><small style="font-weight:400">9~11세</small></button>
             <button type="button" class="level-btn" data-level="초등심화" onclick="selectParentLevel(this)">초등심화<br><small style="font-weight:400">11~13세</small></button>
           </div>
-          <input type="hidden" id="p-level" value="표현력" />
         </div>
         <button type="submit" class="btn btn-primary" id="parent-save-btn">저장</button>
       </form>
@@ -1032,6 +1031,32 @@
 const API_BASE = '';  // Same origin
 
 // ===== Level/Stage Data =====
+const LEVEL_ORDER = ['표현력', '초등기초', '초등심화'];
+
+function formatParentLevels(parent) {
+  const levels = parent?.levels?.length ? parent.levels : (parent?.level ? [parent.level] : []);
+  return levels.length ? levels.join(' · ') : '-';
+}
+
+function getParentLevels(parent) {
+  if (parent?.levels?.length) return parent.levels.filter(lk => LEVEL_ORDER.includes(lk));
+  if (parent?.level) return [parent.level];
+  return [...LEVEL_ORDER];
+}
+
+function getSelectedParentLevels() {
+  return [...document.querySelectorAll('#parent-level-btns .level-btn.active')]
+    .map(b => b.dataset.level)
+    .filter(lk => LEVEL_ORDER.includes(lk));
+}
+
+function setParentLevelsUI(levels) {
+  const selected = new Set((levels && levels.length) ? levels : ['표현력']);
+  document.querySelectorAll('#parent-level-btns .level-btn').forEach(b => {
+    b.classList.toggle('active', selected.has(b.dataset.level));
+  });
+}
+
 const LEVELS = {
   '표현력': {
     label: '표현력 (7~8세)',
@@ -1314,7 +1339,7 @@ function renderParentsList() {
         <div class="parent-item" onclick="openParentHistory(${p.id})">
           <div>
             <div class="parent-name">${escapeHtml(p.child_name)}</div>
-            <div class="parent-sub">${escapeHtml(p.level)} · ${p.child_age ? p.child_age+'세' : '나이 미입력'} · 제출 ${p.submission_count}건</div>
+            <div class="parent-sub">${escapeHtml(formatParentLevels(p))} · ${p.child_age ? p.child_age+'세' : '나이 미입력'} · 제출 ${p.submission_count}건</div>
             <div class="parent-sub" style="font-size:14px; margin-top:4px; color:${p.phone_number ? 'var(--text-muted)' : 'var(--coupon-red)'}; font-weight:${p.phone_number ? '400' : '600'}">${escapeHtml(p.phone_number || '전화번호 미등록 — 친구톡 불가')} · ${(p.kakao_user_id || '').startsWith('pending:') ? '채널 ID 미입력' : '채널 연결됨'}</div>
           </div>
           <div class="parent-actions">
@@ -1537,7 +1562,9 @@ function renderSubmissionModal(s) {
   const parent = s.parent;
   const childName = parent ? parent.child_name : '미등록';
   const childAge = parent ? parent.child_age : '-';
-  const currentLevel = s.level || (parent && parent.level) || '표현력';
+  const allowedLevels = getParentLevels(parent);
+  let currentLevel = s.level || (parent && parent.level) || allowedLevels[0] || '표현력';
+  if (!allowedLevels.includes(currentLevel)) currentLevel = allowedLevels[0];
   const currentStage = s.stage || 1;
 
   selectedLevel = currentLevel;
@@ -1603,7 +1630,7 @@ function renderSubmissionModal(s) {
     <div class="form-group">
       <label>레벨 선택</label>
       <div class="level-selector" id="modal-level-btns">
-        ${Object.keys(LEVELS).map(lk => `
+        ${allowedLevels.map(lk => `
           <button type="button" class="level-btn ${lk === currentLevel ? 'active' : ''}"
             data-level="${lk}" onclick="selectModalLevel(this)">
             ${lk}<br><small style="font-weight:400">${lk==='표현력'?'7~8세':lk==='초등기초'?'9~11세':'11~13세'}</small>
@@ -1873,10 +1900,7 @@ function openAddParent() {
   currentParentId = null;
   document.getElementById('parent-modal-title').textContent = '학부모 추가';
   document.getElementById('parent-form').reset();
-  document.getElementById('p-level').value = '표현력';
-  document.querySelectorAll('#parent-form .level-btn').forEach((b, i) => {
-    b.classList.toggle('active', i === 0);
-  });
+  setParentLevelsUI(['표현력']);
   document.getElementById('p-kakao-id').value = '';
   openModal('parent-modal');
 }
@@ -1910,10 +1934,7 @@ async function openEditParent(parentId) {
     document.getElementById('p-child-name').value = p.child_name || '';
     document.getElementById('p-phone').value = p.phone_number || '';
     document.getElementById('p-child-age').value = p.child_age || '';
-    document.getElementById('p-level').value = p.level || '표현력';
-    document.querySelectorAll('#parent-form .level-btn').forEach(b => {
-      b.classList.toggle('active', b.dataset.level === document.getElementById('p-level').value);
-    });
+    setParentLevelsUI(p.levels || (p.level ? [p.level] : ['표현력']));
   } catch (e) {
     toast('❌ 오류: ' + e.message, 4000);
     closeModal('parent-modal');
@@ -1921,13 +1942,21 @@ async function openEditParent(parentId) {
 }
 
 function selectParentLevel(btn) {
-  document.querySelectorAll('#parent-form .level-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  document.getElementById('p-level').value = btn.dataset.level;
+  btn.classList.toggle('active');
+  if (getSelectedParentLevels().length === 0) {
+    btn.classList.add('active');
+    toast('최소 1개 레벨을 선택해주세요.', 2000);
+  }
 }
 
 async function saveParent(e) {
   e.preventDefault();
+  const levels = getSelectedParentLevels();
+  if (levels.length === 0) {
+    toast('수강 레벨을 1개 이상 선택해주세요.', 2500);
+    return;
+  }
+
   const btn = document.getElementById('parent-save-btn');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span>';
@@ -1937,7 +1966,8 @@ async function saveParent(e) {
       phone_number: document.getElementById('p-phone').value.trim(),
       child_name: document.getElementById('p-child-name').value.trim(),
       child_age: parseInt(document.getElementById('p-child-age').value) || null,
-      level: document.getElementById('p-level').value,
+      levels,
+      level: levels[0],
     };
     const kakaoId = document.getElementById('p-kakao-id').value.trim();
     if (kakaoId) payload.kakao_user_id = kakaoId;
@@ -1982,7 +2012,7 @@ async function openParentHistory(parentId) {
           <span class="label">내부 관리명</span><span class="value">${data.parent.child_name}</span>
         </div>
         <div class="child-info-row">
-          <span class="label">레벨</span><span class="value">${data.parent.level}</span>
+          <span class="label">레벨</span><span class="value">${escapeHtml(formatParentLevels(data.parent))}</span>
         </div>
         <div class="child-info-row">
           <span class="label">제출 수</span><span class="value">${subs.length}건</span>

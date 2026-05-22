@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from database import Parent, Submission, get_db
 from datetime_utils import to_utc_iso
+from levels_utils import parent_levels_for_api
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,7 @@ def get_parent_profile(kakao_user_id: str, db: Session = Depends(get_db)):
         "child_name": parent.child_name,
         "child_age": parent.child_age,
         "level": parent.level,
+        "levels": parent_levels_for_api(parent),
         "created_at": to_utc_iso(parent.created_at),
     }
 

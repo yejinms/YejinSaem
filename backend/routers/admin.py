@@ -18,6 +18,7 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 from database import Parent, Submission, get_db
 from datetime_utils import to_utc_iso
+from levels_utils import apply_parent_levels, parent_levels_for_api, resolve_levels_input
 from services.claude_service import generate_feedback
 from services.outbound_privacy import sanitize_channel_feedback
 from services.kakao_service import send_feedback_message
@@ -27,6 +28,7 @@ from validation import (
     read_validated_upload,
     validate_child_age,
     validate_level,
+    validate_levels,
     verify_admin,
 )
 
@@ -54,7 +56,8 @@ class ParentCreate(BaseModel):
     phone_number: str
     child_name: str
     child_age: Optional[int] = None
-    level: str = "표현력"
+    level: Optional[str] = "표현력"
+    levels: Optional[list[str]] = None
 
 
 class ParentUpdate(BaseModel):
@@ -63,9 +66,11 @@ class ParentUpdate(BaseModel):
     child_name: Optional[str] = None
     child_age: Optional[int] = None
     level: Optional[str] = None
+    levels: Optional[list[str]] = None
 
 
 def serialize_parent(parent: Parent) -> dict:
+    levels = parent_levels_for_api(parent)
     return {
         "id": parent.id,
         "kakao_user_id": parent.kakao_user_id,
@@ -73,6 +78,7 @@ def serialize_parent(parent: Parent) -> dict:
         "child_name": parent.child_name,
         "child_age": parent.child_age,
         "level": parent.level,
+        "levels": levels,
         "created_at": to_utc_iso(parent.created_at),
     }
 
@@ -114,6 +120,7 @@ def serialize_submission(submission: Submission, include_parent_created_at: bool
             "child_name": parent.child_name,
             "child_age": parent.child_age,
             "level": parent.level,
+            "levels": parent_levels_for_api(parent),
         }
         if include_parent_created_at:
             parent_payload["created_at"] = to_utc_iso(parent.created_at)
@@ -411,6 +418,7 @@ def list_parents(db: Session = Depends(get_db)):
             "child_name": p.child_name,
             "child_age": p.child_age,
             "level": p.level,
+            "levels": parent_levels_for_api(p),
             "created_at": to_utc_iso(p.created_at),
             "submission_count": len(p.submissions),
         }
@@ -421,7 +429,7 @@ def list_parents(db: Session = Depends(get_db)):
 @router.post("/parents", status_code=status.HTTP_201_CREATED)
 def create_or_update_parent(body: ParentCreate, db: Session = Depends(get_db)):
     """Create or update a parent by phone number (Kakao botUserKey is linked in admin)."""
-    validate_level(body.level)
+    resolved_levels = validate_levels(resolve_levels_input(body.levels, body.level))
     validate_child_age(body.child_age)
     phone_number = normalize_phone_number(body.phone_number, required=True)
 
@@ -432,7 +440,7 @@ def create_or_update_parent(body: ParentCreate, db: Session = Depends(get_db)):
         existing.child_name = body.child_name
         existing.child_age = body.child_age
         existing.phone_number = phone_number
-        existing.level = body.level
+        apply_parent_levels(existing, resolved_levels)
         if manual_kakao:
             existing.kakao_user_id = manual_kakao
         db.commit()
@@ -446,8 +454,9 @@ def create_or_update_parent(body: ParentCreate, db: Session = Depends(get_db)):
             phone_number=phone_number,
             child_name=body.child_name,
             child_age=body.child_age,
-            level=body.level,
+            level=resolved_levels[0],
         )
+        apply_parent_levels(parent, resolved_levels)
         db.add(parent)
         db.commit()
         db.refresh(parent)
@@ -489,9 +498,11 @@ def update_parent(parent_id: int, body: ParentUpdate, db: Session = Depends(get_
     if body.child_age is not None:
         validate_child_age(body.child_age)
         parent.child_age = body.child_age
-    if body.level is not None:
+    if body.levels is not None:
+        apply_parent_levels(parent, validate_levels(body.levels))
+    elif body.level is not None:
         validate_level(body.level)
-        parent.level = body.level
+        apply_parent_levels(parent, [body.level])
 
     db.commit()
     db.refresh(parent)
@@ -551,6 +562,7 @@ def get_parent_history(
             "child_age": parent.child_age,
             "phone_number": parent.phone_number,
             "level": parent.level,
+            "levels": parent_levels_for_api(parent),
         },
         "submissions": [
             {

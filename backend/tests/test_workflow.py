@@ -97,6 +97,21 @@ def test_parent_create_and_update_phone_number():
     assert updated.json()["child_age"] == 10
 
 
+def test_parent_create_with_multiple_levels():
+    created = client.post(
+        "/admin/parents",
+        json={
+            "phone_number": "01088887777",
+            "child_name": "복수레벨",
+            "levels": ["초등심화", "표현력", "초등기초"],
+        },
+    )
+    assert created.status_code == 201
+    body = created.json()
+    assert body["levels"] == ["표현력", "초등기초", "초등심화"]
+    assert body["level"] == "표현력"
+
+
 def test_delete_parent_removes_submissions():
     parent_id = create_parent()
     db = SessionLocal()
