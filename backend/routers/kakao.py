@@ -212,22 +212,23 @@ async def _handle_kakao_webhook(body: dict, db: Session) -> Response:
         return _skill_json("메시지를 처리할 수 없었어요. 다시 시도해 주세요.")
 
     utterance = body.get("userRequest", {}).get("utterance", "") or ""
-    parent, link_message = resolve_parent(db, kakao_user_id, utterance)
-    if not parent:
+    parent, link_message, phone_just_linked = resolve_parent(db, kakao_user_id, utterance)
+    if link_message:
         logger.info(
-            "Kakao user not linked yet: bot_user_key=%s utterance=%r",
+            "Kakao user link issue: bot_user_key=%s utterance=%r",
             kakao_user_id,
             utterance[:80],
         )
-        return _skill_json(link_message or "학부모 정보를 찾을 수 없어요.")
+        return _skill_json(link_message)
+    if not parent:
+        return _skill_json("학부모 정보를 찾을 수 없어요.")
 
     image_url = extract_image_url(body)
     if not image_url:
         logger.info(f"Text message received from {kakao_user_id}: {utterance}")
-        if extract_phone_from_text(utterance):
+        if phone_just_linked:
             return _skill_json(
-                f"{parent.child_name} 학부모님, 연결되었어요! "
-                "글쓰기 워크시트 사진을 보내주시면 선생님이 피드백을 드릴게요."
+                "등록 확인되었어요! 글쓰기 워크시트 사진을 보내주시면 선생님이 피드백을 드릴게요."
             )
         return _skill_json(
             "안녕하세요! 글쓰기 워크시트 사진을 보내주시면 선생님이 피드백을 드릴게요."

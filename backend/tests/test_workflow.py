@@ -115,6 +115,39 @@ def test_kakao_webhook_unregistered_user_does_not_create_submission():
     assert "휴대폰 번호" in res.json()["template"]["outputs"][0]["simpleText"]["text"]
 
 
+def test_kakao_webhook_relinks_when_same_bot_enters_different_phone(monkeypatch):
+    db = SessionLocal()
+    first = Parent(
+        kakao_user_id="shared-bot",
+        phone_number="01011111111",
+        child_name="예진",
+        child_age=8,
+        level="표현력",
+    )
+    second = Parent(
+        kakao_user_id="pending:01022222222",
+        phone_number="01022222222",
+        child_name="민준",
+        child_age=9,
+        level="표현력",
+    )
+    db.add_all([first, second])
+    db.commit()
+    db.close()
+
+    res = client.post("/kakao/webhook", json=kakao_payload("shared-bot", "01022222222"))
+    assert res.status_code == 200
+    assert "예진" not in res.json()["template"]["outputs"][0]["simpleText"]["text"]
+    assert "등록 확인" in res.json()["template"]["outputs"][0]["simpleText"]["text"]
+
+    db = SessionLocal()
+    linked = db.query(Parent).filter(Parent.child_name == "민준").one()
+    assert linked.kakao_user_id == "shared-bot"
+    released = db.query(Parent).filter(Parent.child_name == "예진").one()
+    assert released.kakao_user_id.startswith("pending:")
+    db.close()
+
+
 def test_kakao_webhook_links_parent_by_phone_then_accepts_image(monkeypatch):
     create_parent("pending:01099998888", phone_number="01099998888")
 
@@ -125,7 +158,7 @@ def test_kakao_webhook_links_parent_by_phone_then_accepts_image(monkeypatch):
 
     link_res = client.post("/kakao/webhook", json=kakao_payload("real-bot-user", "01099998888"))
     assert link_res.status_code == 200
-    assert "연결되었어요" in link_res.json()["template"]["outputs"][0]["simpleText"]["text"]
+    assert "등록 확인" in link_res.json()["template"]["outputs"][0]["simpleText"]["text"]
     assert submission_count() == 0
 
     image_res = client.post(
