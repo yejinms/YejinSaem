@@ -97,6 +97,23 @@ def test_parent_create_and_update_phone_number():
     assert updated.json()["child_age"] == 10
 
 
+def test_delete_parent_removes_submissions():
+    parent_id = create_parent()
+    db = SessionLocal()
+    db.add(Submission(parent_id=parent_id, status="pending"))
+    db.commit()
+    db.close()
+    assert submission_count() == 1
+
+    res = client.delete(f"/admin/parents/{parent_id}")
+    assert res.status_code == 204
+
+    db = SessionLocal()
+    assert db.query(Parent).filter(Parent.id == parent_id).first() is None
+    assert db.query(Submission).count() == 0
+    db.close()
+
+
 def test_admin_auth_when_password_is_configured(monkeypatch):
     monkeypatch.setenv("ADMIN_PASSWORD", "관리자-secret")
     assert client.get("/admin/parents").status_code == 401

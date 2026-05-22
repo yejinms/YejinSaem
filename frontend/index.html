@@ -557,6 +557,11 @@
     .parent-item:hover { background: var(--bg); }
     .parent-name { font-weight: 700; font-size: 15px; }
     .parent-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    .parent-actions {
+      display: flex;
+      gap: 6px;
+      flex-shrink: 0;
+    }
 
     /* ===== Divider ===== */
     .divider { height: 1px; background: var(--border); margin: 16px 0; }
@@ -868,7 +873,10 @@ async function api(path, opts = {}) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
     throw new Error(err.detail || '오류가 발생했습니다.');
   }
-  return res.json();
+  if (res.status === 204) return null;
+  const text = await res.text();
+  if (!text) return null;
+  return JSON.parse(text);
 }
 
 // ===== Tab Switching =====
@@ -1445,7 +1453,10 @@ async function loadParents() {
               <div class="parent-sub">${p.level} · ${p.child_age ? p.child_age+'세' : '나이 미입력'} · 제출 ${p.submission_count}건</div>
               <div class="parent-sub" style="font-size:11px; margin-top:2px; color:${p.phone_number ? '#aaa' : '#b45309'}">${p.phone_number || '⚠ 전화번호 미등록 — 친구톡 불가'} · ${(p.kakao_user_id || '').startsWith('pending:') ? '채널 ID 미입력' : '채널 연결됨'}</div>
             </div>
-            <button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); openEditParent(${p.id})">수정</button>
+            <div class="parent-actions">
+              <button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); openEditParent(${p.id})">수정</button>
+              <button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); deleteParent(${p.id})">삭제</button>
+            </div>
           </div>
         `).join('')}
       </div>`;
@@ -1468,6 +1479,19 @@ function openAddParent() {
 
 function openEditParentFromSubmission(parentId) {
   openEditParent(parentId);
+}
+
+async function deleteParent(parentId) {
+  if (!confirm('이 학부모와 연결된 제출·이력도 모두 삭제됩니다. 정말 삭제할까요?')) return;
+  try {
+    await api(`/admin/parents/${parentId}`, { method: 'DELETE' });
+    toast('삭제되었습니다');
+    loadParents();
+    loadUploadParents();
+    loadPending();
+  } catch (e) {
+    toast('❌ 삭제 실패: ' + e.message, 4000);
+  }
 }
 
 async function openEditParent(parentId) {

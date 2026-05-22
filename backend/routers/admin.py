@@ -497,6 +497,32 @@ def update_parent(parent_id: int, body: ParentUpdate, db: Session = Depends(get_
     return serialize_parent(parent)
 
 
+def delete_submission_files(submission: Submission) -> None:
+    for rel_path in get_submission_photo_paths(submission):
+        file_path = UPLOAD_DIR / rel_path
+        try:
+            if file_path.is_file():
+                file_path.unlink()
+        except OSError as e:
+            logger.warning("Failed to delete upload %s: %s", file_path, e)
+
+
+@router.delete("/parents/{parent_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_parent(parent_id: int, db: Session = Depends(get_db)):
+    """Delete a parent and all associated submissions."""
+    parent = db.query(Parent).filter(Parent.id == parent_id).first()
+    if not parent:
+        raise HTTPException(status_code=404, detail="Parent not found")
+
+    submissions = db.query(Submission).filter(Submission.parent_id == parent_id).all()
+    for submission in submissions:
+        delete_submission_files(submission)
+        db.delete(submission)
+
+    db.delete(parent)
+    db.commit()
+
+
 @router.get("/parents/{parent_id}/history")
 def get_parent_history(
     parent_id: int,
