@@ -7,8 +7,53 @@ import os
 from pathlib import Path
 
 import anthropic
+from dotenv import load_dotenv
 
 from prompts import get_feedback_user_prompt, get_system_prompt
+
+BACKEND_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(BACKEND_DIR / ".env")
+
+
+def get_anthropic_key_status() -> dict:
+    """Check API key presence/format without calling the API."""
+    api_key = (os.getenv("ANTHROPIC_API_KEY") or "").strip()
+    if not api_key:
+        return {
+            "configured": False,
+            "looks_valid": False,
+            "hint": "ANTHROPIC_API_KEY가 비어 있습니다.",
+        }
+    if api_key.startswith("your_") or "key_here" in api_key:
+        return {
+            "configured": True,
+            "looks_valid": False,
+            "hint": "예시 값(your_anthropic_key_here)입니다. 실제 키로 바꿔 주세요.",
+        }
+    if not api_key.startswith("sk-ant-"):
+        return {
+            "configured": True,
+            "looks_valid": False,
+            "hint": "키 형식이 sk-ant- 로 시작하지 않습니다. Anthropic 콘솔에서 발급한 키인지 확인해 주세요.",
+        }
+    return {
+        "configured": True,
+        "looks_valid": True,
+        "hint": "키 형식은 정상입니다. 오류가 계속되면 키 재발급·결제 상태를 확인해 주세요.",
+    }
+
+
+def _validate_api_key() -> str:
+    status = get_anthropic_key_status()
+    if not status["configured"]:
+        raise ValueError(
+            "ANTHROPIC_API_KEY가 비어 있습니다. backend/.env 파일에 API 키를 입력해 주세요."
+        )
+    if not status["looks_valid"]:
+        raise ValueError(
+            f"{status['hint']} (backend/.env 수정 후 서버를 완전히 재시작해 주세요.)"
+        )
+    return (os.getenv("ANTHROPIC_API_KEY") or "").strip()
 
 
 def generate_feedback(
@@ -21,33 +66,19 @@ def generate_feedback(
 ) -> str:
     """
     Generate writing feedback using Claude vision.
-
-    Args:
-        image_path: Path to the uploaded worksheet image
-        level_key: One of '표현력', '초등기초', '초등심화'
-        stage_num: Stage number 1-10
-        child_name: Child's name for personalized feedback
-        extra_instruction: Optional additional instructions from teacher
-        previous_feedbacks: List of previous feedback texts to avoid repetition
-
-    Returns:
-        Generated feedback text as a string
     """
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise ValueError("ANTHROPIC_API_KEY environment variable is not set")
-
+    api_key = _validate_api_key()
     client = anthropic.Anthropic(api_key=api_key)
 
-    # Read and encode the image
     image_path_obj = Path(image_path)
-    if not image_path_obj.exists():
+    if not image_path_obj.is_file():
+        image_path_obj = BACKEND_DIR / image_path
+    if not image_path_obj.is_file():
         raise FileNotFoundError(f"Image file not found: {image_path}")
 
     with open(image_path_obj, "rb") as f:
         image_data = base64.standard_b64encode(f.read()).decode("utf-8")
 
-    # Determine media type based on file extension
     ext = image_path_obj.suffix.lower()
     media_type_map = {
         ".jpg": "image/jpeg",
@@ -58,7 +89,6 @@ def generate_feedback(
     }
     media_type = media_type_map.get(ext, "image/jpeg")
 
-    # Build the user prompt
     user_prompt = get_feedback_user_prompt(
         level_key=level_key,
         stage_num=stage_num,
@@ -94,12 +124,15 @@ def generate_feedback(
         )
     except anthropic.AuthenticationError as e:
         raise ValueError(
-            "Anthropic API 키가 유효하지 않습니다. backend/.env의 ANTHROPIC_API_KEY를 확인하고 서버를 재시작해 주세요."
+            "Anthropic가 API 키를 거부했습니다. "
+            "1) console.anthropic.com 에서 새 키 발급 "
+            "2) backend/.env 한 줄에 ANTHROPIC_API_KEY=sk-ant-... (따옴표 없이) "
+            "3) 서버 Ctrl+C 후 다시 실행"
         ) from e
     except anthropic.APIStatusError as e:
         if e.status_code == 401:
             raise ValueError(
-                "Anthropic API 인증에 실패했습니다. API 키를 확인해 주세요."
+                "Anthropic 인증 실패(401). API 키를 재발급하고 backend/.env를 수정한 뒤 서버를 재시작해 주세요."
             ) from e
         raise
 

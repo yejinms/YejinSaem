@@ -16,12 +16,24 @@ UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", "./uploads"))
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 from database import Parent, Submission, get_db
-from services.claude_service import generate_feedback
+from services.claude_service import generate_feedback, get_anthropic_key_status
 from services.kakao_service import send_feedback_message
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+
+@router.get("/config-status")
+def admin_config_status():
+    """API 키 설정 상태 확인 (키 값은 노출하지 않음)."""
+    backend_dir = Path(__file__).resolve().parent.parent
+    env_path = backend_dir / ".env"
+    return {
+        "env_file": str(env_path),
+        "env_file_exists": env_path.is_file(),
+        "anthropic": get_anthropic_key_status(),
+    }
 
 
 # ---------- Pydantic Schemas ----------
@@ -202,10 +214,7 @@ def generate_submission_feedback(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Claude API error for submission {submission_id}: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"피드백 생성 중 오류가 발생했습니다: {str(e)}",
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to generate feedback: {str(e)}")
 
     # Update submission
     s.level = body.level

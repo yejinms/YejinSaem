@@ -12,8 +12,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-# Load environment variables from .env file
-load_dotenv()
+# Load environment variables from backend/.env (cwd와 무관하게 동일 경로)
+BACKEND_DIR = Path(__file__).resolve().parent
+load_dotenv(BACKEND_DIR / ".env")
 
 # Configure logging
 logging.basicConfig(
