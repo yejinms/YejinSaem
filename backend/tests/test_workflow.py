@@ -97,6 +97,20 @@ def test_parent_create_and_update_phone_number():
     assert updated.json()["child_age"] == 10
 
 
+def test_parent_create_international_phone_number():
+    created = client.post(
+        "/admin/parents",
+        json={
+            "phone_number": "+1 999-222-9333",
+            "child_name": "해외학부모",
+            "child_age": 9,
+            "level": "초등기초",
+        },
+    )
+    assert created.status_code == 201
+    assert created.json()["phone_number"] == "19992229333"
+
+
 def test_parent_create_with_multiple_levels():
     created = client.post(
         "/admin/parents",

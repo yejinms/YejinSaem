@@ -4,6 +4,7 @@ validation.py - Shared validation and security helpers for YejinSaem.
 
 import hmac
 import os
+import re
 from pathlib import Path
 from urllib.parse import unquote
 
@@ -29,16 +30,39 @@ def normalize_phone_number(value: str | None, *, required: bool = False) -> str 
             raise HTTPException(status_code=400, detail="전화번호를 입력해주세요.")
         return None
 
-    normalized = value.replace("-", "").replace(" ", "").strip()
-    if not normalized:
+    stripped = value.strip()
+    if not stripped:
         if required:
             raise HTTPException(status_code=400, detail="전화번호를 입력해주세요.")
         return None
-    if not normalized.isdigit():
+
+    digits = re.sub(r"\D", "", stripped)
+    if not digits:
         raise HTTPException(status_code=400, detail="전화번호는 숫자만 입력해주세요.")
-    if not (len(normalized) == 11 and normalized.startswith("010")):
-        raise HTTPException(status_code=400, detail="휴대폰 번호는 010으로 시작하는 11자리로 입력해주세요.")
-    return normalized
+
+    # 국내 휴대폰: 010xxxxxxxx
+    if digits.startswith("010"):
+        if len(digits) == 11:
+            return digits
+        raise HTTPException(
+            status_code=400,
+            detail="휴대폰 번호는 010으로 시작하는 11자리로 입력해주세요.",
+        )
+
+    # +82 10-xxxx-xxxx → 010xxxxxxxx
+    if digits.startswith("82"):
+        national = digits[2:]
+        if national.startswith("10") and len(national) == 10:
+            return "0" + national
+
+    # 해외 등 E.164 (국가번호 포함, 8~15자리)
+    if 8 <= len(digits) <= 15:
+        return digits
+
+    raise HTTPException(
+        status_code=400,
+        detail="전화번호 형식을 확인해주세요. 국내는 010 11자리, 해외는 국가번호 포함(예: +1 9992229333)으로 입력해주세요.",
+    )
 
 
 def validate_level(level: str) -> None:
