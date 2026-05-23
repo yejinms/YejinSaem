@@ -738,6 +738,9 @@
       border-bottom: 1px solid var(--border);
     }
     .history-item:last-child { border-bottom: none; }
+    .history-item.clickable { cursor: pointer; }
+    .history-item.clickable:hover { background: #fafafa; }
+    .history-item.clickable:active { transform: scale(0.98); }
     .history-meta {
       display: flex;
       justify-content: space-between;
@@ -1153,10 +1156,13 @@ function sortSubmissionsNewestFirst(list) {
   return [...list].sort((a, b) => submissionTimestamp(b) - submissionTimestamp(a));
 }
 
-function renderHistoryItem(s, { showParentName = false } = {}) {
+function renderHistoryItem(s, { showParentName = false, clickable = false, closeParentHistoryModal = false } = {}) {
   const parentName = s.parent ? s.parent.child_name : '미등록';
+  const clickAttr = clickable && s.id
+    ? ` class="history-item clickable" onclick="openSubmission(${s.id})${closeParentHistoryModal ? "; closeModal('parent-history-modal')" : ''}"`
+    : ' class="history-item"';
   return `
-    <div class="history-item">
+    <div${clickAttr}>
       <div class="history-meta">
         <span class="history-level">${s.level || '-'} ${s.stage ? s.stage + '단계' : ''}</span>
         <span style="font-size:14px; color:var(--text-muted)">${formatDate(s.created_at)}</span>
@@ -1850,7 +1856,7 @@ async function loadHistory() {
 
     container.innerHTML = `
       <div class="card">
-        ${submissions.map(s => renderHistoryItem(s, { showParentName: true })).join('')}
+        ${submissions.map(s => renderHistoryItem(s, { showParentName: true, clickable: true })).join('')}
       </div>`;
   } catch (e) {
     container.innerHTML = `<div class="empty"><div class="icon">⚠️</div><p>${e.message}</p></div>`;
@@ -1993,11 +1999,7 @@ async function openParentHistory(parentId) {
         </div>
       </div>
       <div class="card">
-        ${subs.map(s => `
-          <div onclick="openSubmission(${s.id}); closeModal('parent-history-modal');" style="cursor:pointer">
-            ${renderHistoryItem(s)}
-          </div>
-        `).join('')}
+        ${subs.map(s => renderHistoryItem(s, { clickable: true, closeParentHistoryModal: true })).join('')}
       </div>`;
   } catch (err) {
     document.getElementById('parent-history-body').innerHTML =
