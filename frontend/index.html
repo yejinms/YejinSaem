@@ -279,6 +279,15 @@
       font-weight: 400;
       line-height: var(--line-body);
       transition: border-color var(--motion-fast) var(--ease-standard);
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    .paste-zone[contenteditable="true"] {
+      caret-color: transparent;
+    }
+    .paste-zone[contenteditable="true"]:focus {
+      caret-color: var(--blue);
     }
     .paste-zone:focus,
     .paste-zone.has-file {
@@ -289,6 +298,9 @@
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 8px;
+    }
+    .upload-actions .btn-primary {
+      grid-column: 1 / -1;
     }
     .upload-preview {
       display: none;
@@ -899,14 +911,26 @@
           </select>
         </div>
       </div>
-      <div class="paste-zone" id="paste-zone" tabindex="0">
-        이미지 파일을 선택하거나 이 영역을 클릭한 뒤 붙여넣기
+      <div
+        class="paste-zone"
+        id="paste-zone"
+        tabindex="0"
+        contenteditable="true"
+        role="textbox"
+        aria-multiline="true"
+        aria-label="복사한 이미지 붙여넣기"
+        spellcheck="false"
+        autocapitalize="off"
+        autocomplete="off"
+      >
+        <span id="paste-zone-hint" contenteditable="false">이미지 파일을 선택하거나 이 영역을 클릭한 뒤 붙여넣기</span>
       </div>
       <div class="upload-preview" id="upload-preview"></div>
       <input type="file" id="direct-photo-input" accept="image/*" multiple style="display:none" />
       <div class="upload-actions">
-        <button class="btn btn-outline" onclick="chooseDirectPhoto()">파일 선택</button>
-        <button class="btn btn-primary" id="direct-submit-btn" onclick="createDirectSubmission()">제출 만들기</button>
+        <button type="button" class="btn btn-outline" onclick="chooseDirectPhoto()">사진 선택</button>
+        <button type="button" class="btn btn-outline" id="direct-paste-btn" onclick="pasteFromSystemClipboard()">붙여넣기</button>
+        <button type="button" class="btn btn-primary" id="direct-submit-btn" onclick="createDirectSubmission()">제출 만들기</button>
       </div>
     </div>
   </div>
@@ -1384,8 +1408,120 @@ async function loadUploadParents() {
   }
 }
 
+function prefersDirectFilePickOnTap() {
+  return window.matchMedia('(pointer: coarse)').matches
+    || !window.matchMedia('(hover: hover)').matches;
+}
+
+function canReadClipboardImages() {
+  return !!(navigator.clipboard && typeof navigator.clipboard.read === 'function');
+}
+
+function pasteZoneDefaultHint() {
+  return prefersDirectFilePickOnTap()
+    ? '복사한 이미지: 탭 또는 「붙여넣기」 · 갤러리는 「사진 선택」'
+    : '클릭한 뒤 붙여넣기(Ctrl+V) 또는 사진 선택';
+}
+
+function pasteZoneReadyHint() {
+  return prefersDirectFilePickOnTap()
+    ? `${directUploadFiles.length}장 준비됨 · 붙여넣기 또는 사진 선택으로 추가`
+    : `${directUploadFiles.length}장 준비됨 · 붙여넣기 또는 사진 선택으로 추가`;
+}
+
+function setPasteZoneHint(text) {
+  const hint = document.getElementById('paste-zone-hint');
+  if (hint) hint.textContent = text;
+}
+
+function restorePasteZoneDisplay() {
+  const zone = document.getElementById('paste-zone');
+  let hint = document.getElementById('paste-zone-hint');
+  if (!zone) return;
+  if (!hint) {
+    hint = document.createElement('span');
+    hint.id = 'paste-zone-hint';
+    hint.contentEditable = 'false';
+  }
+  zone.replaceChildren(hint);
+  setPasteZoneHint(directUploadFiles.length ? pasteZoneReadyHint() : pasteZoneDefaultHint());
+}
+
 function chooseDirectPhoto() {
   document.getElementById('direct-photo-input')?.click();
+}
+
+function focusPasteZoneForNativePaste() {
+  const zone = document.getElementById('paste-zone');
+  if (!zone) return;
+  zone.focus();
+  toast('이 영역을 길게 눌러 「붙여넣기」를 선택해주세요.', 4000);
+}
+
+async function pasteFromSystemClipboard({ silent = false } = {}) {
+  if (!canReadClipboardImages()) {
+    if (!silent) focusPasteZoneForNativePaste();
+    return false;
+  }
+
+  try {
+    const clipboardItems = await navigator.clipboard.read();
+    const files = [];
+    let index = 0;
+    for (const item of clipboardItems) {
+      const imageType = item.types.find(type => type.startsWith('image/'));
+      if (!imageType) continue;
+      const blob = await item.getType(imageType);
+      const ext = imageType === 'image/jpeg' ? 'jpg'
+        : imageType === 'image/webp' ? 'webp'
+        : imageType === 'image/gif' ? 'gif'
+        : 'png';
+      files.push(new File([blob], `pasted-${Date.now()}-${++index}.${ext}`, { type: imageType }));
+    }
+
+    if (files.length > 0) {
+      addDirectUploadFiles(files);
+      restorePasteZoneDisplay();
+      if (!silent) toast(`${files.length}장 붙여넣었습니다.`, 1800);
+      return true;
+    }
+    if (!silent) toast('클립보드에 이미지가 없습니다. 사진 앱에서 이미지를 복사한 뒤 다시 시도해주세요.', 3500);
+  } catch {
+    if (!silent) focusPasteZoneForNativePaste();
+  }
+  return false;
+}
+
+async function handlePasteZoneActivate() {
+  const zone = document.getElementById('paste-zone');
+  if (!zone) return;
+
+  if (prefersDirectFilePickOnTap()) {
+    const pasted = await pasteFromSystemClipboard({ silent: true });
+    if (!pasted) focusPasteZoneForNativePaste();
+    return;
+  }
+  zone.focus();
+}
+
+function addFilesFromClipboardData(clipboardData) {
+  const items = Array.from(clipboardData?.items || []);
+  const imageItems = items.filter(item => item.kind === 'file' && item.type.startsWith('image/'));
+  if (imageItems.length === 0) return false;
+
+  const pastedFiles = imageItems.map((item, index) => {
+    const blob = item.getAsFile();
+    if (!blob) return null;
+
+    const ext = item.type === 'image/jpeg' ? 'jpg'
+      : item.type === 'image/webp' ? 'webp'
+      : item.type === 'image/gif' ? 'gif'
+      : 'png';
+    return new File([blob], `pasted-${Date.now()}-${index + 1}.${ext}`, { type: item.type });
+  }).filter(Boolean);
+
+  addDirectUploadFiles(pastedFiles);
+  return pastedFiles.length > 0;
 }
 
 function renderDirectUploadFiles() {
@@ -1395,14 +1531,14 @@ function renderDirectUploadFiles() {
 
   if (directUploadFiles.length === 0) {
     zone.classList.remove('has-file');
-    zone.textContent = '이미지 파일을 선택하거나 이 영역을 클릭한 뒤 붙여넣기';
+    setPasteZoneHint(pasteZoneDefaultHint());
     preview.style.display = 'none';
     preview.innerHTML = '';
     return;
   }
 
   zone.classList.add('has-file');
-  zone.textContent = `${directUploadFiles.length}장이 준비되었습니다. 추가 이미지는 다시 선택하거나 붙여넣으세요.`;
+  setPasteZoneHint(pasteZoneReadyHint());
   preview.style.display = 'grid';
   preview.innerHTML = directUploadFiles.map(item => `
     <div class="upload-preview-item">
@@ -2023,27 +2159,23 @@ document.addEventListener('DOMContentLoaded', () => {
     e.target.value = '';
   });
 
-  pasteZone?.addEventListener('click', () => pasteZone.focus());
-  pasteZone?.addEventListener('paste', e => {
-    const items = Array.from(e.clipboardData?.items || []);
-    const imageItems = items.filter(item => item.kind === 'file' && item.type.startsWith('image/'));
-    if (imageItems.length === 0) {
-      toast('클립보드에서 이미지를 찾지 못했습니다.', 2500);
-      return;
+  setPasteZoneHint(pasteZoneDefaultHint());
+
+  pasteZone?.addEventListener('click', () => { void handlePasteZoneActivate(); });
+  pasteZone?.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      void handlePasteZoneActivate();
     }
-
+  });
+  pasteZone?.addEventListener('paste', e => {
     e.preventDefault();
-    const pastedFiles = imageItems.map((item, index) => {
-      const blob = item.getAsFile();
-      if (!blob) return null;
-
-      const ext = item.type === 'image/jpeg' ? 'jpg'
-        : item.type === 'image/webp' ? 'webp'
-        : item.type === 'image/gif' ? 'gif'
-        : 'png';
-      return new File([blob], `pasted-${Date.now()}-${index + 1}.${ext}`, { type: item.type });
-    }).filter(Boolean);
-    addDirectUploadFiles(pastedFiles);
+    const ok = addFilesFromClipboardData(e.clipboardData);
+    restorePasteZoneDisplay();
+    if (!ok) toast('클립보드에서 이미지를 찾지 못했습니다.', 2500);
+  });
+  pasteZone?.addEventListener('input', () => {
+    restorePasteZoneDisplay();
   });
 
   setInterval(() => {
