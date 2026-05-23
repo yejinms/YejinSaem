@@ -1144,6 +1144,34 @@ function statusLabel(status) {
   return map[status] || status;
 }
 
+function submissionTimestamp(s) {
+  const d = parseApiDate(s?.created_at);
+  return d && !Number.isNaN(d.getTime()) ? d.getTime() : 0;
+}
+
+function sortSubmissionsNewestFirst(list) {
+  return [...list].sort((a, b) => submissionTimestamp(b) - submissionTimestamp(a));
+}
+
+function renderHistoryItem(s, { showParentName = false } = {}) {
+  const parentName = s.parent ? s.parent.child_name : '미등록';
+  return `
+    <div class="history-item">
+      <div class="history-meta">
+        <span class="history-level">${s.level || '-'} ${s.stage ? s.stage + '단계' : ''}</span>
+        <span style="font-size:14px; color:var(--text-muted)">${formatDate(s.created_at)}</span>
+      </div>
+      ${showParentName ? `<div style="font-size:14px; font-weight:600; margin-bottom:6px;">${escapeHtml(parentName)}</div>` : ''}
+      <div style="margin-bottom:4px">
+        <span class="status-badge status-${s.status}">${statusLabel(s.status)}</span>
+      </div>
+      ${s.feedback_draft
+        ? `<div class="history-feedback truncated">${s.feedback_draft}</div>`
+        : `<div style="font-size:14px; color:var(--text-muted)">피드백 없음</div>`
+      }
+    </div>`;
+}
+
 function toast(msg, duration = 2500) {
   const el = document.createElement('div');
   el.className = 'toast';
@@ -1814,45 +1842,16 @@ async function loadHistory() {
   const container = document.getElementById('history-list');
   container.innerHTML = '<div class="loading">불러오는 중...</div>';
   try {
-    const submissions = await api('/admin/submissions');
+    const submissions = sortSubmissionsNewestFirst(await api('/admin/submissions'));
     if (submissions.length === 0) {
       container.innerHTML = `<div class="empty"><div class="icon">📂</div><p>이력이 없습니다</p></div>`;
       return;
     }
 
-    // Group by parent
-    const byParent = {};
-    submissions.forEach(s => {
-      const key = s.parent ? s.parent.id : 'unknown';
-      if (!byParent[key]) byParent[key] = { parent: s.parent, submissions: [] };
-      byParent[key].submissions.push(s);
-    });
-
-    container.innerHTML = Object.values(byParent).map(group => {
-      const parent = group.parent;
-      const name = parent ? parent.child_name : '미등록';
-      const itemsHtml = group.submissions.map(s => `
-        <div class="history-item">
-          <div class="history-meta">
-            <span class="history-level">${s.level || '-'} ${s.stage ? s.stage+'단계' : ''}</span>
-            <span style="font-size:14px; color:var(--text-muted)">${formatDate(s.created_at)}</span>
-          </div>
-          <div style="margin-bottom:4px">
-            <span class="status-badge status-${s.status}">${statusLabel(s.status)}</span>
-          </div>
-          ${s.feedback_draft
-            ? `<div class="history-feedback truncated">${s.feedback_draft}</div>`
-            : `<div style="font-size:14px; color:var(--text-muted)">피드백 없음</div>`
-          }
-        </div>
-      `).join('');
-
-      return `
-        <div class="card">
-          <div style="padding:12px 16px 4px; font-weight:700; font-size:16px;">${name}</div>
-          ${itemsHtml}
-        </div>`;
-    }).join('');
+    container.innerHTML = `
+      <div class="card">
+        ${submissions.map(s => renderHistoryItem(s, { showParentName: true })).join('')}
+      </div>`;
   } catch (e) {
     container.innerHTML = `<div class="empty"><div class="icon">⚠️</div><p>${e.message}</p></div>`;
   }
@@ -1972,7 +1971,7 @@ async function openParentHistory(parentId) {
 
   try {
     const data = await api(`/admin/parents/${parentId}/history`);
-    const subs = data.submissions;
+    const subs = sortSubmissionsNewestFirst(data.submissions);
     document.getElementById('parent-history-title').textContent = `${data.parent.child_name} 학습 이력`;
 
     if (subs.length === 0) {
@@ -1995,18 +1994,8 @@ async function openParentHistory(parentId) {
       </div>
       <div class="card">
         ${subs.map(s => `
-          <div class="history-item" onclick="openSubmission(${s.id}); closeModal('parent-history-modal');" style="cursor:pointer">
-            <div class="history-meta">
-              <span class="history-level">${s.level || '-'} ${s.stage ? s.stage+'단계' : ''}</span>
-              <span style="font-size:14px; color:var(--text-muted)">${formatDate(s.created_at)}</span>
-            </div>
-            <div style="margin-bottom:6px">
-              <span class="status-badge status-${s.status}">${statusLabel(s.status)}</span>
-            </div>
-            ${s.feedback_draft
-              ? `<div class="history-feedback truncated">${s.feedback_draft}</div>`
-              : `<div style="font-size:14px; color:var(--text-muted)">피드백 없음</div>`
-            }
+          <div onclick="openSubmission(${s.id}); closeModal('parent-history-modal');" style="cursor:pointer">
+            ${renderHistoryItem(s)}
           </div>
         `).join('')}
       </div>`;
