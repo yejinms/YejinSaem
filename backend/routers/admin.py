@@ -23,6 +23,7 @@ from services.claude_service import generate_feedback, get_anthropic_key_status
 from services.outbound_privacy import sanitize_channel_feedback
 from services.kakao_service import send_feedback_message
 from services.parent_match import is_pending_kakao_user_id, pending_kakao_user_id
+from upload_paths import resolve_upload_file_path
 from validation import (
     normalize_phone_number,
     read_validated_upload,
@@ -523,13 +524,14 @@ def update_parent(parent_id: int, body: ParentUpdate, db: Session = Depends(get_
 
 
 def delete_submission_files(submission: Submission) -> None:
-    for rel_path in get_submission_photo_paths(submission):
-        file_path = UPLOAD_DIR / rel_path
+    for stored_path in get_submission_photo_paths(submission):
         try:
-            if file_path.is_file():
-                file_path.unlink()
+            file_path = resolve_upload_file_path(stored_path)
+            file_path.unlink()
+        except FileNotFoundError:
+            logger.warning("Upload file already missing: %s", stored_path)
         except OSError as e:
-            logger.warning("Failed to delete upload %s: %s", file_path, e)
+            logger.warning("Failed to delete upload %s: %s", stored_path, e)
 
 
 @router.delete("/parents/{parent_id}", status_code=status.HTTP_204_NO_CONTENT)

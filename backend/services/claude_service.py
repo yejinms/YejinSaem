@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 from PIL import Image
 
 from prompts import get_feedback_user_prompt, get_system_prompt
+from upload_paths import resolve_upload_file_path
 
 logger = logging.getLogger(__name__)
 
@@ -70,12 +71,7 @@ def _sanitize_feedback(text: str) -> str:
 
 
 def _resolve_image_path(image_path: str) -> Path:
-    image_path_obj = Path(image_path)
-    if not image_path_obj.is_file():
-        image_path_obj = BACKEND_DIR / image_path
-    if not image_path_obj.is_file():
-        raise FileNotFoundError(f"Image file not found: {image_path}")
-    return image_path_obj
+    return resolve_upload_file_path(image_path)
 
 
 def _fit_image(img: Image.Image, max_side: int) -> Image.Image:
