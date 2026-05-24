@@ -11,6 +11,8 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from database import Parent, Submission, get_db
+from datetime_utils import to_utc_iso
+from levels_utils import parent_levels_for_api
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +38,8 @@ def get_parent_profile(kakao_user_id: str, db: Session = Depends(get_db)):
         "child_name": parent.child_name,
         "child_age": parent.child_age,
         "level": parent.level,
-        "created_at": parent.created_at.isoformat() if parent.created_at else None,
+        "levels": parent_levels_for_api(parent),
+        "created_at": to_utc_iso(parent.created_at),
     }
 
 
@@ -65,7 +68,7 @@ def get_parent_submissions(
             "status": s.status,
             "level": s.level,
             "stage": s.stage,
-            "created_at": s.created_at.isoformat() if s.created_at else None,
+            "created_at": to_utc_iso(s.created_at),
             # Only show feedback if it's been sent
             "feedback": s.feedback_draft if s.status == "sent" else None,
         }

@@ -3,93 +3,158 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>예진샘 관리자</title>
+  <title>생글방글 첨삭 관리자</title>
+  <link rel="icon" href="data:," />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
   <style>
-    /* ===== Reset & Base ===== */
+    /* ===== Reset & Base (여기어때, DESIGN.md) ===== */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --primary: #7BAB8B;
-      --primary-dark: #5e9070;
-      --primary-light: #c5dece;
-      --bg: #f5f9f6;
-      --surface: #ffffff;
-      --border: #d6e8dc;
-      --text: #2c3e35;
-      --text-muted: #6b8878;
-      --danger: #e05c5c;
-      --warning: #e8a24a;
-      --success: #4caf80;
-      --radius: 12px;
-      --shadow: 0 2px 12px rgba(0,0,0,0.08);
-      --font: 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+      --blue: #1D8BFF;
+      --blue-dark: #1678e0;
+      --blue-tint: #E3F0FF;
+      --white: #ffffff;
+      --text: #222222;
+      --text-muted: #666666;
+      --border: #E6E6E6;
+      --skeleton: #E6E6E6;
+      --rating-yellow: #FFC83B;
+      --member-slate: #49627A;
+      --coupon-red: #F94239;
+      --coupon-tint: #FFEDEA;
+      --radius-badge: 3px;
+      --radius-rating: 6px;
+      --radius-btn: 8px;
+      --radius-card: 12px;
+      --radius-pill: 100px;
+      --font: 'Pretendard', 'Pretendard Fallback', 'Apple SD Gothic Neo', 'Noto Sans KR', system-ui, -apple-system, sans-serif;
+      --motion-fast: 150ms;
+      --motion-standard: 250ms;
+      --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+      --ease-enter: cubic-bezier(0, 0, 0.2, 1);
+      /* legacy aliases for JS inline styles */
+      --black: var(--text);
+      --bg: var(--white);
+      --surface: var(--white);
+      --primary: var(--blue);
+      --primary-dark: var(--blue-dark);
+      --primary-light: var(--blue-tint);
+      --glass-dark: #f4f4f4;
+      --border-input: var(--border);
+      --success: var(--blue);
+      --danger: var(--coupon-red);
+      /* Admin readability scale (≥14px body, 16px inputs per DESIGN search spec) */
+      --font-base: 16px;
+      --font-secondary: 14px;
+      --font-caption: 13px;
+      --line-body: 1.55;
+      --touch-target: 48px;
+      --input-pad-y: 14px;
+      --input-pad-x: 16px;
     }
     body {
       font-family: var(--font);
-      background: var(--bg);
+      background: var(--white);
       color: var(--text);
       min-height: 100vh;
-      font-size: 15px;
-      line-height: 1.6;
+      font-size: var(--font-base);
+      font-weight: 400;
+      line-height: var(--line-body);
+      -webkit-font-smoothing: antialiased;
+    }
+    :focus-visible {
+      outline: 2px solid var(--blue);
+      outline-offset: 2px;
     }
 
     /* ===== Header ===== */
     header {
-      background: var(--primary);
-      color: white;
-      padding: 16px 20px;
+      background: var(--white);
+      color: var(--text);
+      padding: 0 20px;
+      height: 56px;
       display: flex;
       align-items: center;
-      gap: 10px;
       position: sticky;
       top: 0;
       z-index: 100;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      border-bottom: 1px solid var(--border);
     }
-    header h1 { font-size: 18px; font-weight: 700; }
-    header .subtitle { font-size: 12px; opacity: 0.8; }
+    header h1 {
+      font-size: 20px;
+      font-weight: 700;
+      line-height: 1.3;
+      color: var(--text);
+    }
+    header .subtitle {
+      font-size: var(--font-secondary);
+      font-weight: 400;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
 
-    /* ===== Tabs ===== */
+    /* ===== Tabs (Filter Chip) ===== */
+    .tabs-wrap {
+      position: sticky;
+      top: 56px;
+      z-index: 90;
+      background: var(--white);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 16px 16px;
+    }
     .tabs {
       display: flex;
-      background: var(--surface);
-      border-bottom: 2px solid var(--border);
-      position: sticky;
-      top: 60px;
-      z-index: 90;
+      gap: 8px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      max-width: 640px;
+      margin: 0 auto;
     }
+    .tabs::-webkit-scrollbar { display: none; }
     .tab-btn {
-      flex: 1;
-      padding: 14px 8px;
-      border: none;
-      background: none;
+      flex: 0 0 auto;
+      min-height: 40px;
+      height: auto;
+      padding: 10px 18px;
+      border: 1.5px solid var(--border);
+      background: var(--white);
       font-family: var(--font);
-      font-size: 14px;
-      color: var(--text-muted);
+      font-size: var(--font-secondary);
+      font-weight: 600;
+      color: var(--text);
       cursor: pointer;
-      border-bottom: 3px solid transparent;
-      transition: all 0.2s;
-      font-weight: 500;
+      border-radius: var(--radius-pill);
+      white-space: nowrap;
+      transition: background var(--motion-fast) var(--ease-standard),
+                  color var(--motion-fast) var(--ease-standard),
+                  border-color var(--motion-fast) var(--ease-standard);
+    }
+    .tab-btn:hover:not(.active) {
+      border-color: #ccc;
     }
     .tab-btn.active {
-      color: var(--primary-dark);
-      border-bottom-color: var(--primary);
-      font-weight: 700;
+      background: var(--blue);
+      color: var(--white);
+      border-color: var(--blue);
     }
 
     /* ===== Tab Panels ===== */
-    .tab-panel { display: none; padding: 16px; }
+    .tab-panel { display: none; padding: 16px 16px 32px; }
     .tab-panel.active { display: block; }
 
-    /* ===== Cards ===== */
+    /* ===== Cards (Listing Card) ===== */
     .card {
       background: var(--surface);
-      border-radius: var(--radius);
-      border: 1px solid var(--border);
-      box-shadow: var(--shadow);
-      margin-bottom: 12px;
+      border-radius: var(--radius-card);
+      border: none;
+      margin-bottom: 16px;
       overflow: hidden;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
     }
-    .card-body { padding: 14px 16px; }
+    .card-body { padding: 16px; }
 
     /* ===== Submission Item ===== */
     .submission-item {
@@ -97,50 +162,75 @@
       align-items: center;
       gap: 12px;
       cursor: pointer;
-      transition: background 0.15s;
+      transition: transform var(--motion-fast) var(--ease-standard),
+                  background var(--motion-fast) var(--ease-standard);
     }
-    .submission-item:hover { background: var(--bg); }
-    .submission-item:active { background: var(--primary-light); }
+    .submission-item:hover { background: #fafafa; }
+    .submission-item:active { transform: scale(0.98); }
 
     .thumb {
       width: 64px;
       height: 64px;
-      border-radius: 8px;
+      border-radius: var(--radius-card);
       object-fit: cover;
       flex-shrink: 0;
-      background: var(--border);
+      background: var(--skeleton);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 28px;
+      font-size: 22px;
     }
-    .thumb img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; }
+    .thumb img { width: 100%; height: 100%; object-fit: cover; border-radius: var(--radius-card); }
 
     .submission-info { flex: 1; min-width: 0; }
-    .child-name { font-weight: 700; font-size: 15px; }
-    .sub-detail { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    .child-name {
+      font-weight: 700;
+      font-size: 16px;
+      color: var(--text);
+      line-height: 1.35;
+    }
+    .sub-detail {
+      font-size: var(--font-secondary);
+      font-weight: 400;
+      color: var(--text-muted);
+      margin-top: 4px;
+      line-height: 1.45;
+    }
 
     .status-badge {
-      font-size: 11px;
-      padding: 3px 8px;
-      border-radius: 20px;
-      font-weight: 600;
+      font-size: var(--font-caption);
+      padding: 3px 6px;
+      border-radius: var(--radius-badge);
+      font-weight: 700;
       white-space: nowrap;
       flex-shrink: 0;
+      border: none;
     }
-    .status-pending   { background: #fff3cd; color: #856404; }
-    .status-generated { background: #cfe2ff; color: #084298; }
-    .status-approved  { background: #d1e7dd; color: #0a3622; }
-    .status-sent      { background: #d1e7dd; color: #0a3622; }
+    .status-pending {
+      background: var(--white);
+      color: var(--text);
+      box-shadow: inset 0 0 0 1.5px var(--border);
+    }
+    .status-generated {
+      background: var(--blue-tint);
+      color: var(--blue);
+    }
+    .status-approved {
+      background: var(--blue);
+      color: var(--white);
+    }
+    .status-sent {
+      background: var(--member-slate);
+      color: var(--white);
+    }
 
     /* ===== Section Title ===== */
     .section-title {
-      font-size: 13px;
+      font-size: 18px;
       font-weight: 700;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin: 20px 0 10px;
+      color: var(--text);
+      margin: 24px 0 12px;
+      line-height: 1.3;
     }
     .section-title:first-child { margin-top: 0; }
 
@@ -150,15 +240,123 @@
       padding: 48px 20px;
       color: var(--text-muted);
     }
-    .empty .icon { font-size: 48px; margin-bottom: 12px; }
-    .empty p { font-size: 14px; }
+    .empty .icon { font-size: 28px; margin-bottom: 12px; opacity: 0.35; }
+    .empty p {
+      font-size: var(--font-base);
+      font-weight: 400;
+      line-height: var(--line-body);
+      color: var(--text);
+    }
 
     /* ===== Loading ===== */
     .loading {
       text-align: center;
       padding: 32px;
       color: var(--text-muted);
-      font-size: 14px;
+      font-size: var(--font-base);
+      font-weight: 400;
+    }
+
+    /* ===== Direct Upload ===== */
+    .direct-upload-grid {
+      display: grid;
+      gap: 12px;
+    }
+    .paste-zone {
+      min-height: 88px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-card);
+      background: var(--white);
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 16px;
+      cursor: pointer;
+      outline: none;
+      font-size: var(--font-base);
+      font-weight: 400;
+      line-height: var(--line-body);
+      transition: border-color var(--motion-fast) var(--ease-standard);
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    .paste-zone[contenteditable="true"] {
+      caret-color: transparent;
+    }
+    .paste-zone[contenteditable="true"]:focus {
+      caret-color: var(--blue);
+    }
+    .paste-zone:focus,
+    .paste-zone.has-file {
+      border-color: var(--blue);
+      color: var(--text);
+    }
+    .upload-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .upload-actions .btn-primary {
+      grid-column: 1 / -1;
+    }
+    .upload-preview {
+      display: none;
+      grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+      gap: 8px;
+      font-size: var(--font-secondary);
+      color: var(--text-muted);
+    }
+    .upload-preview-item {
+      position: relative;
+      min-width: 0;
+      border: none;
+      border-radius: var(--radius-card);
+      background: var(--surface);
+      overflow: hidden;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+    }
+    .upload-preview-item img {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      object-fit: cover;
+      display: block;
+      background: var(--bg);
+    }
+    .upload-preview-name {
+      padding: 6px 8px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .upload-remove-btn {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      width: 32px;
+      height: 32px;
+      border: none;
+      border-radius: 50%;
+      background: rgba(34, 34, 34, 0.72);
+      color: var(--white);
+      font-size: 16px;
+      line-height: 1;
+      cursor: pointer;
+      transition: background var(--motion-fast) var(--ease-standard);
+    }
+    .upload-remove-btn:hover { background: var(--text); }
+    .thumb-count {
+      position: absolute;
+      right: 4px;
+      bottom: 4px;
+      padding: 2px 6px;
+      border-radius: var(--radius-rating);
+      background: var(--rating-yellow);
+      color: #000000;
+      font-size: 12px;
+      font-weight: 700;
     }
 
     /* ===== Buttons ===== */
@@ -167,196 +365,226 @@
       align-items: center;
       justify-content: center;
       gap: 6px;
-      padding: 12px 20px;
-      border: none;
-      border-radius: 10px;
+      padding: 9px 14px;
+      min-height: 44px;
+      border: 1.5px solid transparent;
+      border-radius: var(--radius-btn);
       font-family: var(--font);
-      font-size: 14px;
+      font-size: 15px;
       font-weight: 600;
+      line-height: 1.3;
       cursor: pointer;
-      transition: all 0.2s;
+      transition: background var(--motion-fast) var(--ease-standard),
+                  border-color var(--motion-fast) var(--ease-standard),
+                  color var(--motion-fast) var(--ease-standard);
       width: 100%;
     }
     .btn-primary {
-      background: var(--primary);
-      color: white;
+      background: var(--blue);
+      color: var(--white);
+      border-color: var(--blue);
     }
-    .btn-primary:hover { background: var(--primary-dark); }
-    .btn-primary:disabled { background: #a8c8b4; cursor: not-allowed; }
+    .btn-primary:hover:not(:disabled) { background: var(--blue-dark); border-color: var(--blue-dark); }
+    .btn-primary:disabled {
+      background: var(--border);
+      border-color: var(--border);
+      color: #888888;
+      cursor: not-allowed;
+    }
 
     .btn-success {
-      background: var(--success);
-      color: white;
+      background: var(--blue);
+      color: var(--white);
+      border-color: var(--blue);
     }
-    .btn-success:hover { background: #3d9c6a; }
-    .btn-success:disabled { background: #9fd4be; cursor: not-allowed; }
+    .btn-success:hover:not(:disabled) { background: var(--blue-dark); border-color: var(--blue-dark); }
+    .btn-success:disabled {
+      background: var(--border);
+      border-color: var(--border);
+      color: #888888;
+      cursor: not-allowed;
+    }
 
     .btn-outline {
-      background: transparent;
-      color: var(--primary-dark);
-      border: 2px solid var(--primary);
+      background: var(--white);
+      color: var(--text);
+      border-color: var(--border);
     }
-    .btn-outline:hover { background: var(--primary-light); }
+    .btn-outline:hover:not(:disabled) {
+      border-color: #ccc;
+      background: #fafafa;
+    }
+
+    .btn-brand-outline {
+      background: var(--white);
+      color: var(--blue);
+      border-color: var(--blue);
+    }
+    .btn-brand-outline:hover:not(:disabled) { background: var(--blue-tint); }
 
     .btn-danger {
-      background: var(--danger);
-      color: white;
+      background: var(--white);
+      color: var(--coupon-red);
+      border: 1.5px solid var(--coupon-red);
     }
-    .btn-danger:hover { background: #c84040; }
+    .btn-danger:hover:not(:disabled) { background: var(--coupon-tint); }
 
     .btn-sm {
       padding: 8px 14px;
-      font-size: 13px;
-      border-radius: 8px;
-      width: auto;
-    }
-
-    .btn-row {
-      display: flex;
-      gap: 8px;
-      margin-top: 8px;
-    }
-    .btn-row .btn { flex: 1; }
-
-    .upload-card {
-      margin-bottom: 16px;
-      border: 2px dashed var(--border);
-      background: var(--surface);
-    }
-    .upload-card .hint {
-      font-size: 12px;
-      color: var(--text-muted);
-      margin-top: 6px;
-    }
-    input[type="file"] {
-      width: 100%;
-      font-size: 13px;
-      padding: 8px 0;
-    }
-
-    .paste-zone {
-      padding: 18px 14px;
-      border: 2px dashed var(--border);
-      border-radius: 10px;
-      text-align: center;
-      cursor: pointer;
-      background: var(--bg);
-      margin-bottom: 10px;
-      outline: none;
-      transition: border-color 0.2s, background 0.2s;
-    }
-    .paste-zone:focus,
-    .paste-zone.has-image {
-      border-color: var(--primary);
-      background: var(--primary-light);
-    }
-    .paste-zone-text {
-      font-size: 14px;
-      display: block;
-      color: var(--text);
-    }
-    .paste-zone-sub {
-      font-size: 12px;
-      color: var(--text-muted);
-      margin-top: 6px;
-      display: block;
-    }
-    .upload-preview {
-      margin-bottom: 10px;
-      text-align: center;
-    }
-    .upload-preview img {
-      max-width: 100%;
-      max-height: 220px;
-      border-radius: 8px;
-      border: 1px solid var(--border);
-      object-fit: contain;
-    }
-    .upload-preview .clear-preview {
-      margin-top: 8px;
+      min-height: 38px;
+      font-size: var(--font-secondary);
+      border-radius: var(--radius-btn);
       width: auto;
     }
 
     /* ===== Form Elements ===== */
     label {
       display: block;
-      font-size: 13px;
+      font-size: 15px;
       font-weight: 600;
+      color: var(--text);
+      margin-bottom: 10px;
+      line-height: 1.4;
+    }
+    label small {
+      font-size: var(--font-secondary);
+      font-weight: 400;
       color: var(--text-muted);
-      margin-bottom: 6px;
     }
     input[type="text"],
     input[type="number"],
+    input[type="tel"],
+    input[type="search"],
     select,
     textarea {
       width: 100%;
-      padding: 11px 14px;
+      min-height: var(--touch-target);
+      padding: var(--input-pad-y) var(--input-pad-x);
       border: 1.5px solid var(--border);
-      border-radius: 8px;
+      border-radius: var(--radius-card);
       font-family: var(--font);
-      font-size: 14px;
+      font-size: var(--font-base);
+      font-weight: 400;
+      line-height: 1.4;
       color: var(--text);
       background: var(--surface);
-      transition: border-color 0.2s;
+      transition: border-color var(--motion-fast) var(--ease-standard);
       outline: none;
     }
-    input:focus, select:focus, textarea:focus {
-      border-color: var(--primary);
+    select {
+      appearance: auto;
+      cursor: pointer;
     }
-    textarea { resize: vertical; min-height: 100px; }
+    input::placeholder, textarea::placeholder {
+      color: var(--text-muted);
+    }
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--blue);
+    }
+    textarea {
+      resize: vertical;
+      min-height: 120px;
+      line-height: var(--line-body);
+    }
 
-    .form-group { margin-bottom: 16px; }
+    .form-group { margin-bottom: 18px; }
 
-    /* ===== Level Selector ===== */
+    /* 학부모 검색·선택 (hero search 크기) */
+    .parent-picker {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .parent-search,
+    #upload-parent-select {
+      min-height: var(--touch-target);
+      padding: var(--input-pad-y) var(--input-pad-x);
+      font-size: var(--font-base);
+      line-height: 1.4;
+    }
+    .parent-search {
+      margin-bottom: 0;
+    }
+    .parent-search-wrap .parent-search {
+      margin-bottom: 0;
+    }
+    .parent-search-wrap {
+      margin-bottom: 16px;
+    }
+
+    /* ===== Level Selector (Filter Chips) ===== */
     .level-selector {
       display: flex;
+      flex-wrap: wrap;
       gap: 8px;
       margin-bottom: 4px;
     }
     .level-btn {
-      flex: 1;
-      padding: 10px 6px;
-      border: 2px solid var(--border);
-      border-radius: 8px;
-      background: white;
+      flex: 1 1 auto;
+      min-width: 0;
+      min-height: 40px;
+      height: auto;
+      padding: 10px 14px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-pill);
+      background: var(--white);
       font-family: var(--font);
-      font-size: 12px;
+      font-size: var(--font-secondary);
       font-weight: 600;
+      line-height: 1.35;
       cursor: pointer;
       text-align: center;
-      color: var(--text-muted);
-      transition: all 0.2s;
+      color: var(--text);
+      transition: background var(--motion-fast) var(--ease-standard),
+                  color var(--motion-fast) var(--ease-standard),
+                  border-color var(--motion-fast) var(--ease-standard);
     }
+    .level-btn:hover:not(.active) { border-color: #ccc; }
     .level-btn.active {
-      border-color: var(--primary);
-      background: var(--primary-light);
-      color: var(--primary-dark);
+      background: var(--blue);
+      color: var(--white);
+      border-color: var(--blue);
+    }
+    .level-btn small {
+      font-size: var(--font-caption);
+      font-weight: 400;
+      display: block;
+      margin-top: 2px;
     }
 
     /* ===== Modal ===== */
     .modal-overlay {
       position: fixed;
       inset: 0;
-      background: rgba(0,0,0,0.5);
+      background: rgba(0, 0, 0, 0.4);
       z-index: 200;
       display: none;
-      overflow-y: auto;
+      overflow: hidden;
+      overscroll-behavior: none;
     }
-    .modal-overlay.open { display: flex; flex-direction: column; }
+    .modal-overlay.open {
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+    }
     .modal {
       background: var(--surface);
-      border-radius: 20px 20px 0 0;
-      margin-top: auto;
+      border-radius: var(--radius-card) var(--radius-card) 0 0;
       width: 100%;
       max-width: 640px;
       margin-left: auto;
       margin-right: auto;
-      padding-bottom: 32px;
-      min-height: 60vh;
-      animation: slideUp 0.3s ease;
+      padding-bottom: max(32px, env(safe-area-inset-bottom));
+      max-height: min(92vh, 92dvh);
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+      flex-shrink: 0;
+      animation: slideUp var(--motion-standard) var(--ease-enter);
+      border-top: 1px solid var(--border);
     }
     @keyframes slideUp {
-      from { transform: translateY(50px); opacity: 0; }
+      from { transform: translateY(40px); opacity: 0; }
       to { transform: translateY(0); opacity: 1; }
     }
     .modal-handle {
@@ -370,53 +598,78 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 16px 20px 0;
+      padding: 16px 24px 0;
     }
-    .modal-title { font-size: 17px; font-weight: 700; }
+    .modal-title {
+      font-size: 18px;
+      font-weight: 700;
+      line-height: 1.35;
+      color: var(--text);
+    }
     .modal-close {
-      background: none;
-      border: none;
-      font-size: 24px;
+      width: 32px;
+      height: 32px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-btn);
+      background: var(--white);
+      font-size: 16px;
       cursor: pointer;
-      color: var(--text-muted);
+      color: var(--text);
       line-height: 1;
-      padding: 4px;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: border-color var(--motion-fast) var(--ease-standard);
     }
-    .modal-body { padding: 16px 20px; }
+    .modal-close:hover { border-color: var(--text); }
+    .modal-body { padding: 16px 24px 24px; }
 
     /* ===== Photo Viewer ===== */
     .photo-full {
       width: 100%;
       max-height: 280px;
       object-fit: contain;
-      border-radius: 12px;
-      background: #f0f4f2;
+      border-radius: var(--radius-card);
+      background: #f4f4f4;
       margin-bottom: 16px;
+    }
+    .photo-gallery {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .photo-gallery .photo-full {
+      margin-bottom: 0;
+      height: 180px;
     }
     .no-photo {
       width: 100%;
       height: 160px;
-      background: var(--bg);
-      border-radius: 12px;
+      background: #f4f4f4;
+      border-radius: var(--radius-card);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 40px;
+      font-size: 28px;
       margin-bottom: 16px;
+      opacity: 0.4;
     }
 
     /* ===== Child Info Card ===== */
     .child-info-card {
-      background: var(--bg);
-      border-radius: 10px;
-      padding: 12px 14px;
+      background: #fafafa;
+      border-radius: var(--radius-card);
+      padding: 16px;
       margin-bottom: 16px;
     }
     .child-info-row {
       display: flex;
       justify-content: space-between;
-      font-size: 13px;
-      margin-bottom: 4px;
+      font-size: var(--font-secondary);
+      margin-bottom: 6px;
+      line-height: 1.45;
     }
     .child-info-row:last-child { margin-bottom: 0; }
     .child-info-row .label { color: var(--text-muted); }
@@ -424,9 +677,49 @@
 
     /* ===== Feedback Textarea ===== */
     .feedback-area {
-      background: #fffef7;
-      border-color: #e8d97a;
+      background: var(--white);
+      border: 1.5px solid var(--border);
       min-height: 140px;
+      border-radius: var(--radius-card);
+    }
+    .feedback-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: stretch;
+    }
+    .feedback-actions .btn-send-kakao,
+    .feedback-actions .btn-mark-sent {
+      flex: 1 1 140px;
+    }
+    .feedback-actions .copy-feedback-btn {
+      flex: 0 0 auto;
+      min-width: 82px;
+      padding-left: 14px;
+      padding-right: 14px;
+      white-space: nowrap;
+    }
+
+    .phone-warning-card {
+      background: var(--coupon-tint);
+      border: none;
+      border-radius: var(--radius-card);
+      padding: 16px;
+      margin-bottom: 16px;
+      font-size: var(--font-base);
+      font-weight: 400;
+      line-height: var(--line-body);
+      color: var(--text-muted);
+    }
+    .phone-warning-card strong {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--coupon-red);
+    }
+    .phone-warning-card .btn {
+      margin-top: 10px;
     }
 
     /* ===== Toast ===== */
@@ -435,15 +728,16 @@
       bottom: 24px;
       left: 50%;
       transform: translateX(-50%);
-      background: #2c3e35;
-      color: white;
-      padding: 12px 20px;
-      border-radius: 24px;
-      font-size: 14px;
+      background: var(--text);
+      color: var(--white);
+      padding: 10px 16px;
+      border-radius: var(--radius-btn);
+      font-size: var(--font-base);
+      font-weight: 400;
       z-index: 500;
       white-space: nowrap;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.2);
-      animation: toastIn 0.3s ease;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+      animation: toastIn var(--motion-standard) var(--ease-enter);
     }
     @keyframes toastIn {
       from { transform: translateX(-50%) translateY(20px); opacity: 0; }
@@ -456,14 +750,28 @@
       border-bottom: 1px solid var(--border);
     }
     .history-item:last-child { border-bottom: none; }
+    .history-item.clickable { cursor: pointer; }
+    .history-item.clickable:hover { background: #fafafa; }
+    .history-item.clickable:active { transform: scale(0.98); }
     .history-meta {
       display: flex;
       justify-content: space-between;
       align-items: center;
       margin-bottom: 6px;
     }
-    .history-level { font-size: 12px; background: var(--primary-light); color: var(--primary-dark); padding: 2px 8px; border-radius: 10px; font-weight: 600; }
-    .history-feedback { font-size: 13px; color: var(--text-muted); line-height: 1.5; }
+    .history-level {
+      font-size: var(--font-caption);
+      background: var(--blue-tint);
+      color: var(--blue);
+      padding: 3px 6px;
+      border-radius: var(--radius-badge);
+      font-weight: 700;
+    }
+    .history-feedback {
+      font-size: var(--font-secondary);
+      color: var(--text-muted);
+      line-height: var(--line-body);
+    }
     .history-feedback.truncated {
       display: -webkit-box;
       -webkit-line-clamp: 2;
@@ -481,9 +789,33 @@
       cursor: pointer;
     }
     .parent-item:last-child { border-bottom: none; }
-    .parent-item:hover { background: var(--bg); }
-    .parent-name { font-weight: 700; font-size: 15px; }
-    .parent-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    .parent-item:hover { background: #fafafa; }
+    .parent-item:active { transform: scale(0.98); }
+    .parent-name {
+      font-weight: 700;
+      font-size: 16px;
+      color: var(--text);
+    }
+    .parent-sub {
+      font-size: var(--font-secondary);
+      color: var(--text-muted);
+      margin-top: 4px;
+      line-height: 1.45;
+    }
+    .parent-actions {
+      display: flex;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .parent-search-empty {
+      padding: 24px 16px;
+      text-align: center;
+      color: var(--text);
+      font-size: var(--font-base);
+      font-weight: 400;
+      line-height: var(--line-body);
+    }
 
     /* ===== Divider ===== */
     .divider { height: 1px; background: var(--border); margin: 16px 0; }
@@ -493,18 +825,46 @@
       display: inline-block;
       width: 18px;
       height: 18px;
-      border: 2px solid rgba(255,255,255,0.4);
-      border-top-color: white;
+      border: 2px solid rgba(255, 255, 255, 0.35);
+      border-top-color: var(--white);
       border-radius: 50%;
       animation: spin 0.7s linear infinite;
     }
+    .btn-outline .spinner,
+    .btn-danger .spinner {
+      border-color: rgba(34, 34, 34, 0.2);
+      border-top-color: var(--text);
+    }
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    .sent-banner {
+      text-align: center;
+      padding: 8px 0 16px;
+      color: var(--blue);
+      font-weight: 600;
+      font-size: var(--font-secondary);
+    }
 
     /* ===== Responsive ===== */
     @media (min-width: 640px) {
-      .modal { border-radius: 20px; margin: auto; max-height: 90vh; overflow-y: auto; }
-      .tabs { max-width: 640px; margin: 0 auto; }
-      .tab-panel { max-width: 640px; margin: 0 auto; }
+      .modal-overlay.open { justify-content: center; align-items: center; padding: 24px; }
+      .modal {
+        border-radius: var(--radius-card);
+        margin: auto;
+        max-height: 90vh;
+        border: 1px solid var(--border);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+      }
+      .tabs-wrap { padding-left: 24px; padding-right: 24px; }
+      .tab-panel { max-width: 640px; margin: 0 auto; padding-left: 24px; padding-right: 24px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
     }
   </style>
 </head>
@@ -513,42 +873,65 @@
 <!-- Header -->
 <header>
   <div>
-    <h1>📝 예진샘 관리자</h1>
-    <div class="subtitle">글쓰기 피드백 서비스</div>
+    <h1>생글방글 첨삭 관리자</h1>
+    <div class="subtitle">글쓰기 피드백 관리</div>
   </div>
 </header>
 
 <!-- Tabs -->
-<nav class="tabs">
-  <button class="tab-btn active" onclick="switchTab('pending')" id="tab-pending">대기 목록</button>
-  <button class="tab-btn" onclick="switchTab('history')" id="tab-history">이력</button>
-  <button class="tab-btn" onclick="switchTab('parents')" id="tab-parents">학부모 관리</button>
-</nav>
+<div class="tabs-wrap">
+  <nav class="tabs" role="tablist" aria-label="관리 메뉴">
+    <button class="tab-btn active" role="tab" aria-selected="true" onclick="switchTab('pending')" id="tab-pending">대기 목록</button>
+    <button class="tab-btn" role="tab" aria-selected="false" onclick="switchTab('history')" id="tab-history">이력</button>
+    <button class="tab-btn" role="tab" aria-selected="false" onclick="switchTab('parents')" id="tab-parents">학부모 관리</button>
+  </nav>
+</div>
 
 <!-- Tab: Pending Submissions -->
 <div class="tab-panel active" id="panel-pending">
-  <div class="card upload-card">
-    <div class="card-body">
-      <div class="section-title" style="margin-top:0">새 제출 (로컬용)</div>
-      <div class="form-group" style="margin-bottom:10px">
-        <label>학부모 선택</label>
-        <select id="upload-parent-select">
-          <option value="">학부모를 먼저 등록해 주세요</option>
-        </select>
+  <div class="card">
+    <div class="card-body direct-upload-grid">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+        <div class="section-title" style="margin:0">직접 제출 만들기</div>
+        <button class="btn btn-outline btn-sm" onclick="loadUploadParents()">학부모 새로고침</button>
       </div>
-      <div class="form-group" style="margin-bottom:10px">
-        <label>워크시트 사진</label>
-        <div id="upload-paste-zone" class="paste-zone" tabindex="0">
-          <span class="paste-zone-text">여기를 클릭한 뒤 <strong>Ctrl+V</strong> (Mac: ⌘V)로 붙여넣기</span>
-          <span class="paste-zone-sub">카톡·메일에서 복사한 이미지도 됩니다</span>
+      <div class="form-group" style="margin-bottom:0;">
+        <label>학부모</label>
+        <div class="parent-picker">
+          <input
+            type="search"
+            id="upload-parent-search"
+            class="parent-search"
+            placeholder="이름이나 전화번호로 검색해보세요."
+            autocomplete="off"
+            aria-label="학부모 검색"
+          />
+          <select id="upload-parent-select" aria-label="학부모 선택">
+            <option value="">학부모를 불러오는 중...</option>
+          </select>
         </div>
-        <div id="upload-preview" class="upload-preview" style="display:none"></div>
-        <input type="file" id="upload-photo-input" accept="image/*" />
       </div>
-      <button class="btn btn-primary btn-sm" type="button" onclick="uploadSubmission()" id="upload-btn" style="width:100%">
-        사진 업로드
-      </button>
-      <p class="hint">파일 선택 · 붙여넣기 · 업로드 후 피드백 생성 → 복사해서 카톡 전송</p>
+      <div
+        class="paste-zone"
+        id="paste-zone"
+        tabindex="0"
+        contenteditable="true"
+        role="textbox"
+        aria-multiline="true"
+        aria-label="복사한 이미지 붙여넣기"
+        spellcheck="false"
+        autocapitalize="off"
+        autocomplete="off"
+      >
+        <span id="paste-zone-hint" contenteditable="false">이미지 파일을 선택하거나 이 영역을 클릭한 뒤 붙여넣기</span>
+      </div>
+      <div class="upload-preview" id="upload-preview"></div>
+      <input type="file" id="direct-photo-input" accept="image/*" multiple style="display:none" />
+      <div class="upload-actions">
+        <button type="button" class="btn btn-outline" onclick="chooseDirectPhoto()">사진 선택</button>
+        <button type="button" class="btn btn-outline" id="direct-paste-btn" onclick="pasteFromSystemClipboard()">붙여넣기</button>
+        <button type="button" class="btn btn-primary" id="direct-submit-btn" onclick="createDirectSubmission()">제출 만들기</button>
+      </div>
     </div>
   </div>
   <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
@@ -576,6 +959,16 @@
   <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
     <div class="section-title" style="margin:0">등록된 학부모</div>
     <button class="btn btn-primary btn-sm" onclick="openAddParent()">+ 추가</button>
+  </div>
+  <div class="parent-search-wrap">
+    <input
+      type="search"
+      id="parents-search"
+      class="parent-search"
+      placeholder="이름이나 전화번호로 검색해보세요."
+      autocomplete="off"
+      aria-label="학부모 목록 검색"
+    />
   </div>
   <div id="parents-list">
     <div class="loading">불러오는 중...</div>
@@ -607,29 +1000,38 @@
     <div class="modal-body">
       <form id="parent-form" onsubmit="saveParent(event)">
         <div class="form-group">
-          <label>카카오 사용자 ID</label>
-          <input type="text" id="p-kakao-id" placeholder="Kakao user ID" required />
+          <label>전화번호 <small>(학부모 식별 · 친구톡 발송)</small></label>
+          <input type="tel" id="p-phone" placeholder="예: 01012345678 또는 +1 9992229333" required />
+          <small style="color:var(--text-muted); display:block; margin-top:8px; font-size:14px; font-weight:400; line-height:1.5;">
+            친구톡 발송용입니다. 해외 번호는 국가번호 포함(+1 등)으로 입력하세요. 채팅에서 번호를 묻지 않습니다.
+          </small>
+        </div>
+        <div class="form-group" id="p-kakao-group">
+          <label>카카오 채널 연결 ID <small>(botUserKey)</small></label>
+          <input type="text" id="p-kakao-id" placeholder="채널 대화 후 Railway 로그에서 복사" />
+          <small style="color:var(--text-muted); display:block; margin-top:8px; font-size:14px; font-weight:400; line-height:1.5;">
+            학부모가 채널에서 보낸 뒤 Deploy Logs의 <code>bot_user_key=...</code> 값을 붙여 넣으면 사진이 이 학부모로 들어옵니다.
+          </small>
         </div>
         <div class="form-group">
-          <label>아이 이름</label>
-          <input type="text" id="p-child-name" placeholder="예: 민준" required />
-        </div>
-        <div class="form-group">
-          <label>전화번호 <small style="color:#6b8878">(친구톡 발송용)</small></label>
-          <input type="tel" id="p-phone" placeholder="예: 01012345678" />
+          <label>내부 관리명</label>
+          <input type="text" id="p-child-name" placeholder="예: 민준A · 구매자와 다를 수 있음" required />
+          <small style="color:var(--text-muted); display:block; margin-top:8px; font-size:14px; font-weight:400; line-height:1.5;">
+            선생님 화면에서만 씁니다. <strong>카카오 채팅·친구톡에는 이름이 절대 나가지 않습니다.</strong>
+            (아이·학부모·구매자 실명과 달라도 됩니다)
+          </small>
         </div>
         <div class="form-group">
           <label>아이 나이</label>
           <input type="number" id="p-child-age" placeholder="예: 8" min="5" max="15" />
         </div>
         <div class="form-group">
-          <label>현재 레벨</label>
-          <div class="level-selector">
+          <label>수강 레벨 <small style="color:var(--text-muted); font-weight:400">(복수 선택 · 패키지는 3개 모두)</small></label>
+          <div class="level-selector" id="parent-level-btns">
             <button type="button" class="level-btn active" data-level="표현력" onclick="selectParentLevel(this)">표현력<br><small style="font-weight:400">7~8세</small></button>
             <button type="button" class="level-btn" data-level="초등기초" onclick="selectParentLevel(this)">초등기초<br><small style="font-weight:400">9~11세</small></button>
             <button type="button" class="level-btn" data-level="초등심화" onclick="selectParentLevel(this)">초등심화<br><small style="font-weight:400">11~13세</small></button>
           </div>
-          <input type="hidden" id="p-level" value="표현력" />
         </div>
         <button type="submit" class="btn btn-primary" id="parent-save-btn">저장</button>
       </form>
@@ -656,6 +1058,32 @@
 const API_BASE = '';  // Same origin
 
 // ===== Level/Stage Data =====
+const LEVEL_ORDER = ['표현력', '초등기초', '초등심화'];
+
+function formatParentLevels(parent) {
+  const levels = parent?.levels?.length ? parent.levels : (parent?.level ? [parent.level] : []);
+  return levels.length ? levels.join(' · ') : '-';
+}
+
+function getParentLevels(parent) {
+  if (parent?.levels?.length) return parent.levels.filter(lk => LEVEL_ORDER.includes(lk));
+  if (parent?.level) return [parent.level];
+  return [...LEVEL_ORDER];
+}
+
+function getSelectedParentLevels() {
+  return [...document.querySelectorAll('#parent-level-btns .level-btn.active')]
+    .map(b => b.dataset.level)
+    .filter(lk => LEVEL_ORDER.includes(lk));
+}
+
+function setParentLevelsUI(levels) {
+  const selected = new Set((levels && levels.length) ? levels : ['표현력']);
+  document.querySelectorAll('#parent-level-btns .level-btn').forEach(b => {
+    b.classList.toggle('active', selected.has(b.dataset.level));
+  });
+}
+
 const LEVELS = {
   '표현력': {
     label: '표현력 (7~8세)',
@@ -706,26 +1134,72 @@ const LEVELS = {
 
 // ===== State =====
 let currentSubmissionId = null;
+let currentParentId = null;
 let selectedLevel = null;
 let selectedStage = null;
-let pendingUploadFile = null;
-let pendingUploadPreviewUrl = null;
+let directUploadFiles = [];
+let directUploadFileSeq = 0;
+let cachedParents = [];
+const ADMIN_TOKEN_KEY = 'yejinsaem_admin_token';
+const MAX_DIRECT_UPLOAD_IMAGES = 10;
 
 // ===== Utility =====
+const PENDING_REFRESH_MS = 15000;
+
+function parseApiDate(isoString) {
+  if (!isoString) return null;
+  const s = String(isoString).trim();
+  if (!s) return null;
+  if (/[zZ]|[+-]\d{2}:\d{2}$/.test(s)) return new Date(s);
+  return new Date(`${s}Z`);
+}
+
+/** 통일 형식: YY/MM/DD HH:MM (로컬 시각) */
 function formatDate(isoString) {
-  if (!isoString) return '-';
-  const d = new Date(isoString);
-  const now = new Date();
-  const diff = now - d;
-  if (diff < 60000) return '방금 전';
-  if (diff < 3600000) return `${Math.floor(diff/60000)}분 전`;
-  if (diff < 86400000) return `${Math.floor(diff/3600000)}시간 전`;
-  return `${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;
+  const d = parseApiDate(isoString);
+  if (!d || Number.isNaN(d.getTime())) return '-';
+  const yy = String(d.getFullYear()).slice(-2);
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mi = String(d.getMinutes()).padStart(2, '0');
+  return `${yy}/${mm}/${dd} ${hh}:${mi}`;
 }
 
 function statusLabel(status) {
   const map = { pending: '대기', generated: '생성됨', approved: '승인됨', sent: '전송완료' };
   return map[status] || status;
+}
+
+function submissionTimestamp(s) {
+  const d = parseApiDate(s?.created_at);
+  return d && !Number.isNaN(d.getTime()) ? d.getTime() : 0;
+}
+
+function sortSubmissionsNewestFirst(list) {
+  return [...list].sort((a, b) => submissionTimestamp(b) - submissionTimestamp(a));
+}
+
+function renderHistoryItem(s, { showParentName = false, clickable = false, closeParentHistoryModal = false } = {}) {
+  const parentName = s.parent ? s.parent.child_name : '미등록';
+  const clickAttr = clickable && s.id
+    ? ` class="history-item clickable" onclick="openSubmission(${s.id})${closeParentHistoryModal ? "; closeModal('parent-history-modal')" : ''}"`
+    : ' class="history-item"';
+  return `
+    <div${clickAttr}>
+      <div class="history-meta">
+        <span class="history-level">${s.level || '-'} ${s.stage ? s.stage + '단계' : ''}</span>
+        <span style="font-size:14px; color:var(--text-muted)">${formatDate(s.created_at)}</span>
+      </div>
+      ${showParentName ? `<div style="font-size:14px; font-weight:600; margin-bottom:6px;">${escapeHtml(parentName)}</div>` : ''}
+      <div style="margin-bottom:4px">
+        <span class="status-badge status-${s.status}">${statusLabel(s.status)}</span>
+      </div>
+      ${s.feedback_draft
+        ? `<div class="history-feedback truncated">${s.feedback_draft}</div>`
+        : `<div style="font-size:14px; color:var(--text-muted)">피드백 없음</div>`
+      }
+    </div>`;
 }
 
 function toast(msg, duration = 2500) {
@@ -736,170 +1210,72 @@ function toast(msg, duration = 2500) {
   setTimeout(() => el.remove(), duration);
 }
 
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
+function uploadUrl(path) {
+  return `/uploads/${String(path).split('/').pop()}`;
+}
+
+function getSubmissionPhotoPaths(submission) {
+  if (Array.isArray(submission.photo_paths) && submission.photo_paths.length > 0) {
+    return submission.photo_paths;
+  }
+  return submission.photo_path ? [submission.photo_path] : [];
+}
+
 async function api(path, opts = {}) {
   const headers = { ...(opts.headers || {}) };
-  if (opts.body && typeof opts.body === 'string') {
+  if (!(opts.body instanceof FormData)) {
     headers['Content-Type'] = 'application/json';
   }
-  const res = await fetch(API_BASE + path, { ...opts, headers });
+  const token = sessionStorage.getItem(ADMIN_TOKEN_KEY);
+  if (token) {
+    headers.Authorization = `Bearer ${encodeURIComponent(token)}`;
+  }
+
+  const res = await fetch(API_BASE + path, {
+    ...opts,
+    headers,
+  });
+  if (res.status === 401) {
+    sessionStorage.removeItem(ADMIN_TOKEN_KEY);
+    const password = prompt('관리자 비밀번호를 입력해주세요.');
+    if (password) {
+      sessionStorage.setItem(ADMIN_TOKEN_KEY, password);
+      return api(path, opts);
+    }
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
-    const detail = err.detail;
-    const msg = Array.isArray(detail)
-      ? detail.map(d => d.msg || JSON.stringify(d)).join(', ')
-      : (detail || res.statusText);
-    throw new Error(msg || '오류가 발생했습니다.');
+    throw new Error(err.detail || '오류가 발생했습니다.');
   }
-  return res.json();
-}
-
-async function refreshUploadParentSelect() {
-  const sel = document.getElementById('upload-parent-select');
-  if (!sel) return;
-  try {
-    const parents = await api('/admin/parents');
-    if (parents.length === 0) {
-      sel.innerHTML = '<option value="">학부모를 먼저 등록해 주세요</option>';
-      return;
-    }
-    sel.innerHTML = parents.map(p =>
-      `<option value="${p.id}">${p.child_name} · ${p.level}</option>`
-    ).join('');
-  } catch (e) {
-    sel.innerHTML = '<option value="">불러오기 실패</option>';
-  }
-}
-
-function clearPendingUpload() {
-  if (pendingUploadPreviewUrl) URL.revokeObjectURL(pendingUploadPreviewUrl);
-  pendingUploadFile = null;
-  pendingUploadPreviewUrl = null;
-  const preview = document.getElementById('upload-preview');
-  const zone = document.getElementById('upload-paste-zone');
-  if (preview) {
-    preview.innerHTML = '';
-    preview.style.display = 'none';
-  }
-  if (zone) zone.classList.remove('has-image');
-  const fileInput = document.getElementById('upload-photo-input');
-  if (fileInput) fileInput.value = '';
-}
-
-function setPendingUploadFile(file) {
-  if (!file || !file.type.startsWith('image/')) {
-    toast('이미지만 붙여넣거나 선택할 수 있어요.');
-    return;
-  }
-  clearPendingUpload();
-  pendingUploadFile = file;
-  pendingUploadPreviewUrl = URL.createObjectURL(file);
-  const preview = document.getElementById('upload-preview');
-  const zone = document.getElementById('upload-paste-zone');
-  if (preview) {
-    preview.innerHTML = `<img src="${pendingUploadPreviewUrl}" alt="미리보기" />
-      <br><button type="button" class="btn btn-outline btn-sm clear-preview" onclick="clearPendingUpload()">이미지 제거</button>`;
-    preview.style.display = 'block';
-  }
-  if (zone) zone.classList.add('has-image');
-}
-
-function handleUploadPaste(e) {
-  const items = e.clipboardData?.items;
-  if (!items) return;
-  for (const item of items) {
-    if (item.type.indexOf('image') !== -1) {
-      e.preventDefault();
-      const file = item.getAsFile();
-      if (file) {
-        const named = file.name && file.name !== 'image.png'
-          ? file
-          : new File([file], `paste-${Date.now()}.png`, { type: file.type || 'image/png' });
-        setPendingUploadFile(named);
-        toast('이미지를 붙였어요. 업로드 버튼을 눌러 주세요.');
-      }
-      return;
-    }
-  }
-}
-
-function initUploadHandlers() {
-  const zone = document.getElementById('upload-paste-zone');
-  const fileInput = document.getElementById('upload-photo-input');
-  if (zone) {
-    zone.addEventListener('paste', handleUploadPaste);
-    zone.addEventListener('click', () => zone.focus());
-  }
-  if (fileInput) {
-    fileInput.addEventListener('change', () => {
-      const f = fileInput.files?.[0];
-      if (f) setPendingUploadFile(f);
-    });
-  }
-  document.addEventListener('paste', (e) => {
-    const panel = document.getElementById('panel-pending');
-    if (!panel?.classList.contains('active')) return;
-    if (e.target.closest('.modal-overlay.open')) return;
-    handleUploadPaste(e);
-  });
-}
-
-async function uploadSubmission() {
-  const parentId = document.getElementById('upload-parent-select')?.value;
-  const fileInput = document.getElementById('upload-photo-input');
-  const btn = document.getElementById('upload-btn');
-  if (!parentId) { toast('학부모를 선택해 주세요.'); return; }
-  const file = pendingUploadFile || fileInput?.files?.[0];
-  if (!file) { toast('사진을 선택하거나 Ctrl+V로 붙여넣어 주세요.'); return; }
-  const form = new FormData();
-  form.append('photo', file, file.name || 'worksheet.jpg');
-  btn.disabled = true;
-  btn.textContent = '업로드 중...';
-  try {
-    const res = await fetch(
-      `${API_BASE}/admin/submissions/upload?parent_id=${parentId}`,
-      { method: 'POST', body: form }
-    );
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail || '업로드 실패');
-    }
-    await res.json();
-    clearPendingUpload();
-    toast('업로드 완료! 피드백을 생성해 주세요.');
-    loadPending();
-  } catch (e) {
-    toast('❌ ' + e.message, 4000);
-  } finally {
-    btn.disabled = false;
-    btn.textContent = '사진 업로드';
-  }
-}
-
-async function copyFeedback() {
-  const text = document.getElementById('modal-feedback')?.value?.trim() || '';
-  if (!text) { toast('복사할 피드백이 없어요.'); return; }
-  try {
-    await navigator.clipboard.writeText(text);
-    toast('클립보드에 복사했어요!');
-  } catch (e) {
-    const ta = document.getElementById('modal-feedback');
-    ta.select();
-    document.execCommand('copy');
-    toast('복사했어요!');
-  }
+  if (res.status === 204) return null;
+  const text = await res.text();
+  if (!text) return null;
+  return JSON.parse(text);
 }
 
 // ===== Tab Switching =====
 function switchTab(tab) {
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    b.classList.remove('active');
+    b.setAttribute('aria-selected', 'false');
+  });
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-  document.getElementById('tab-' + tab).classList.add('active');
+  const activeTab = document.getElementById('tab-' + tab);
+  activeTab.classList.add('active');
+  activeTab.setAttribute('aria-selected', 'true');
   document.getElementById('panel-' + tab).classList.add('active');
 
-  if (tab === 'pending') {
-    refreshUploadParentSelect();
-    loadPending();
-  } else if (tab === 'history') loadHistory();
+  if (tab === 'pending') loadPending();
+  else if (tab === 'history') loadHistory();
   else if (tab === 'parents') loadParents();
 }
 
@@ -918,6 +1294,346 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
     if (e.target === overlay) closeModal(overlay.id);
   });
 });
+
+// ===== Parent search =====
+function normalizeParentSearchQuery(query) {
+  return String(query || '').trim().toLowerCase();
+}
+
+function parentMatchesSearch(parent, query) {
+  const q = normalizeParentSearchQuery(query);
+  if (!q) return true;
+
+  const name = (parent.child_name || '').toLowerCase();
+  const phoneRaw = parent.phone_number || '';
+  const phoneLower = phoneRaw.toLowerCase();
+  const qDigits = q.replace(/\D/g, '');
+  const phoneDigits = phoneRaw.replace(/\D/g, '');
+
+  if (name.includes(q)) return true;
+  if (phoneLower.includes(q)) return true;
+  if (qDigits && phoneDigits.includes(qDigits)) return true;
+  return false;
+}
+
+function filterParents(parents, query) {
+  return parents.filter(p => parentMatchesSearch(p, query));
+}
+
+function renderUploadParentSelect() {
+  const select = document.getElementById('upload-parent-select');
+  if (!select) return;
+
+  const query = document.getElementById('upload-parent-search')?.value || '';
+  const previousValue = select.value;
+  const filtered = filterParents(cachedParents, query);
+
+  if (cachedParents.length === 0) {
+    select.innerHTML = '<option value="">등록된 학부모가 없습니다</option>';
+    return;
+  }
+  if (filtered.length === 0) {
+    select.innerHTML = '<option value="">검색 결과가 없습니다</option>';
+    return;
+  }
+
+  select.innerHTML = filtered.map(p => `
+    <option value="${p.id}">${escapeHtml(p.child_name)} · ${escapeHtml(p.phone_number || '전화번호 미등록')}</option>
+  `).join('');
+
+  if (filtered.some(p => String(p.id) === previousValue)) {
+    select.value = previousValue;
+  }
+}
+
+function renderParentsList() {
+  const container = document.getElementById('parents-list');
+  if (!container) return;
+
+  const query = document.getElementById('parents-search')?.value || '';
+  const filtered = filterParents(cachedParents, query);
+
+  if (cachedParents.length === 0) {
+    container.innerHTML = `
+      <div class="empty">
+        <div class="icon">👨‍👩‍👧</div>
+        <p>등록된 학부모가 없어요.<br>+ 추가 버튼으로 등록해 주세요.</p>
+      </div>`;
+    return;
+  }
+  if (filtered.length === 0) {
+    container.innerHTML = `<div class="parent-search-empty">「${escapeHtml(query)}」에 맞는 학부모가 없습니다.</div>`;
+    return;
+  }
+
+  container.innerHTML = `
+    <div class="card">
+      ${filtered.map(p => `
+        <div class="parent-item" onclick="openParentHistory(${p.id})">
+          <div>
+            <div class="parent-name">${escapeHtml(p.child_name)}</div>
+            <div class="parent-sub">${escapeHtml(formatParentLevels(p))} · ${p.child_age ? p.child_age+'세' : '나이 미입력'} · 제출 ${p.submission_count}건</div>
+            <div class="parent-sub" style="font-size:14px; margin-top:4px; color:${p.phone_number ? 'var(--text-muted)' : 'var(--coupon-red)'}; font-weight:${p.phone_number ? '400' : '600'}">${escapeHtml(p.phone_number || '전화번호 미등록 — 친구톡 불가')} · ${(p.kakao_user_id || '').startsWith('pending:') ? '채널 ID 미입력' : '채널 연결됨'}</div>
+          </div>
+          <div class="parent-actions">
+            <button class="btn btn-outline btn-sm" onclick="event.stopPropagation(); openEditParent(${p.id})">수정</button>
+            <button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); deleteParent(${p.id})">삭제</button>
+          </div>
+        </div>
+      `).join('')}
+    </div>`;
+}
+
+async function refreshParentsCache() {
+  cachedParents = await api('/admin/parents');
+  renderUploadParentSelect();
+  const parentsPanel = document.getElementById('panel-parents');
+  if (parentsPanel?.classList.contains('active')) {
+    renderParentsList();
+  }
+}
+
+// ===== Direct Upload =====
+async function loadUploadParents() {
+  const select = document.getElementById('upload-parent-select');
+  if (!select) return;
+  select.innerHTML = '<option value="">학부모를 불러오는 중...</option>';
+
+  try {
+    await refreshParentsCache();
+  } catch (e) {
+    cachedParents = [];
+    select.innerHTML = '<option value="">학부모 로드 실패</option>';
+    toast('❌ 학부모 목록 오류: ' + e.message, 4000);
+  }
+}
+
+function prefersDirectFilePickOnTap() {
+  return window.matchMedia('(pointer: coarse)').matches
+    || !window.matchMedia('(hover: hover)').matches;
+}
+
+function canReadClipboardImages() {
+  return !!(navigator.clipboard && typeof navigator.clipboard.read === 'function');
+}
+
+function pasteZoneDefaultHint() {
+  return prefersDirectFilePickOnTap()
+    ? '복사한 이미지: 탭 또는 「붙여넣기」 · 갤러리는 「사진 선택」'
+    : '클릭한 뒤 붙여넣기(Ctrl+V) 또는 사진 선택';
+}
+
+function pasteZoneReadyHint() {
+  return prefersDirectFilePickOnTap()
+    ? `${directUploadFiles.length}장 준비됨 · 붙여넣기 또는 사진 선택으로 추가`
+    : `${directUploadFiles.length}장 준비됨 · 붙여넣기 또는 사진 선택으로 추가`;
+}
+
+function setPasteZoneHint(text) {
+  const hint = document.getElementById('paste-zone-hint');
+  if (hint) hint.textContent = text;
+}
+
+function restorePasteZoneDisplay() {
+  const zone = document.getElementById('paste-zone');
+  let hint = document.getElementById('paste-zone-hint');
+  if (!zone) return;
+  if (!hint) {
+    hint = document.createElement('span');
+    hint.id = 'paste-zone-hint';
+    hint.contentEditable = 'false';
+  }
+  zone.replaceChildren(hint);
+  setPasteZoneHint(directUploadFiles.length ? pasteZoneReadyHint() : pasteZoneDefaultHint());
+}
+
+function chooseDirectPhoto() {
+  document.getElementById('direct-photo-input')?.click();
+}
+
+function focusPasteZoneForNativePaste() {
+  const zone = document.getElementById('paste-zone');
+  if (!zone) return;
+  zone.focus();
+  toast('이 영역을 길게 눌러 「붙여넣기」를 선택해주세요.', 4000);
+}
+
+async function pasteFromSystemClipboard({ silent = false } = {}) {
+  if (!canReadClipboardImages()) {
+    if (!silent) focusPasteZoneForNativePaste();
+    return false;
+  }
+
+  try {
+    const clipboardItems = await navigator.clipboard.read();
+    const files = [];
+    let index = 0;
+    for (const item of clipboardItems) {
+      const imageType = item.types.find(type => type.startsWith('image/'));
+      if (!imageType) continue;
+      const blob = await item.getType(imageType);
+      const ext = imageType === 'image/jpeg' ? 'jpg'
+        : imageType === 'image/webp' ? 'webp'
+        : imageType === 'image/gif' ? 'gif'
+        : 'png';
+      files.push(new File([blob], `pasted-${Date.now()}-${++index}.${ext}`, { type: imageType }));
+    }
+
+    if (files.length > 0) {
+      addDirectUploadFiles(files);
+      restorePasteZoneDisplay();
+      if (!silent) toast(`${files.length}장 붙여넣었습니다.`, 1800);
+      return true;
+    }
+    if (!silent) toast('클립보드에 이미지가 없습니다. 사진 앱에서 이미지를 복사한 뒤 다시 시도해주세요.', 3500);
+  } catch {
+    if (!silent) focusPasteZoneForNativePaste();
+  }
+  return false;
+}
+
+async function handlePasteZoneActivate() {
+  const zone = document.getElementById('paste-zone');
+  if (!zone) return;
+
+  if (prefersDirectFilePickOnTap()) {
+    const pasted = await pasteFromSystemClipboard({ silent: true });
+    if (!pasted) focusPasteZoneForNativePaste();
+    return;
+  }
+  zone.focus();
+}
+
+function addFilesFromClipboardData(clipboardData) {
+  const items = Array.from(clipboardData?.items || []);
+  const imageItems = items.filter(item => item.kind === 'file' && item.type.startsWith('image/'));
+  if (imageItems.length === 0) return false;
+
+  const pastedFiles = imageItems.map((item, index) => {
+    const blob = item.getAsFile();
+    if (!blob) return null;
+
+    const ext = item.type === 'image/jpeg' ? 'jpg'
+      : item.type === 'image/webp' ? 'webp'
+      : item.type === 'image/gif' ? 'gif'
+      : 'png';
+    return new File([blob], `pasted-${Date.now()}-${index + 1}.${ext}`, { type: item.type });
+  }).filter(Boolean);
+
+  addDirectUploadFiles(pastedFiles);
+  return pastedFiles.length > 0;
+}
+
+function renderDirectUploadFiles() {
+  const zone = document.getElementById('paste-zone');
+  const preview = document.getElementById('upload-preview');
+  if (!zone || !preview) return;
+
+  if (directUploadFiles.length === 0) {
+    zone.classList.remove('has-file');
+    setPasteZoneHint(pasteZoneDefaultHint());
+    preview.style.display = 'none';
+    preview.innerHTML = '';
+    return;
+  }
+
+  zone.classList.add('has-file');
+  setPasteZoneHint(pasteZoneReadyHint());
+  preview.style.display = 'grid';
+  preview.innerHTML = directUploadFiles.map(item => `
+    <div class="upload-preview-item">
+      <img src="${item.previewUrl}" alt="${escapeHtml(item.file.name || '업로드 이미지')}" />
+      <button class="upload-remove-btn" type="button" onclick="removeDirectUploadFile(${item.id})" aria-label="이미지 삭제">×</button>
+      <div class="upload-preview-name">${escapeHtml(item.file.name || '붙여넣은 이미지')}</div>
+    </div>
+  `).join('');
+}
+
+function addDirectUploadFiles(files) {
+  const incomingFiles = Array.from(files || []);
+  if (incomingFiles.length === 0) return;
+
+  let added = 0;
+  let skipped = 0;
+  for (const file of incomingFiles) {
+    if (!file || !file.type.startsWith('image/')) {
+      skipped += 1;
+      continue;
+    }
+    if (directUploadFiles.length >= MAX_DIRECT_UPLOAD_IMAGES) {
+      skipped += 1;
+      continue;
+    }
+
+    directUploadFiles.push({
+      id: ++directUploadFileSeq,
+      file,
+      previewUrl: URL.createObjectURL(file),
+    });
+    added += 1;
+  }
+
+  renderDirectUploadFiles();
+  if (skipped > 0) {
+    toast(`이미지는 최대 ${MAX_DIRECT_UPLOAD_IMAGES}장까지, 이미지 파일만 추가할 수 있습니다.`, 3000);
+  } else if (added > 1) {
+    toast(`${added}장의 이미지를 추가했습니다.`, 1800);
+  }
+}
+
+function removeDirectUploadFile(id) {
+  const item = directUploadFiles.find(fileItem => fileItem.id === id);
+  if (item) URL.revokeObjectURL(item.previewUrl);
+  directUploadFiles = directUploadFiles.filter(fileItem => fileItem.id !== id);
+  renderDirectUploadFiles();
+}
+
+function resetDirectUploadFile() {
+  directUploadFiles.forEach(item => URL.revokeObjectURL(item.previewUrl));
+  directUploadFiles = [];
+
+  const input = document.getElementById('direct-photo-input');
+  if (input) input.value = '';
+  renderDirectUploadFiles();
+}
+
+async function createDirectSubmission() {
+  const parentId = document.getElementById('upload-parent-select')?.value;
+  const btn = document.getElementById('direct-submit-btn');
+
+  if (!parentId) {
+    toast('학부모를 선택해주세요.', 2500);
+    return;
+  }
+  if (directUploadFiles.length === 0) {
+    toast('이미지를 1장 이상 선택하거나 붙여넣어주세요.', 2500);
+    return;
+  }
+
+  const form = new FormData();
+  directUploadFiles.forEach(item => {
+    form.append('photos', item.file, item.file.name || 'pasted-image.png');
+  });
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> 생성 중...';
+
+  try {
+    const result = await api(`/admin/submissions/upload?parent_id=${encodeURIComponent(parentId)}`, {
+      method: 'POST',
+      body: form,
+    });
+    toast('제출이 생성되었습니다.');
+    resetDirectUploadFile();
+    await loadPending();
+    openSubmission(result.id);
+  } catch (e) {
+    toast('❌ 제출 생성 실패: ' + e.message, 4000);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '제출 만들기';
+  }
+}
 
 // ===== Pending Submissions =====
 async function loadPending() {
@@ -943,12 +1659,16 @@ function renderSubmissionList(container, submissions) {
   }
 
   container.innerHTML = submissions.map(s => {
-    const photoHtml = s.photo_path
-      ? `<div class="thumb"><img src="/uploads/${s.photo_path.split('/').pop()}" onerror="this.parentElement.innerHTML='📄'" /></div>`
+    const photoPaths = getSubmissionPhotoPaths(s);
+    const photoHtml = photoPaths.length > 0
+      ? `<div class="thumb" style="position:relative">
+          <img src="${uploadUrl(photoPaths[0])}" onerror="this.parentElement.innerHTML='📄'" />
+          ${photoPaths.length > 1 ? `<span class="thumb-count">${photoPaths.length}</span>` : ''}
+        </div>`
       : `<div class="thumb">📄</div>`;
     const parent = s.parent;
     const childName = parent ? parent.child_name : '(미등록)';
-    const parentName = parent ? `카카오: ${parent.kakao_user_id.slice(0,8)}...` : '';
+    const parentName = parent ? `${parent.child_name} · ${parent.phone_number || ''}` : '';
     const level = s.level || (parent && parent.level) || '-';
     const stage = s.stage ? `${s.stage}단계` : '미지정';
 
@@ -987,14 +1707,21 @@ function renderSubmissionModal(s) {
   const parent = s.parent;
   const childName = parent ? parent.child_name : '미등록';
   const childAge = parent ? parent.child_age : '-';
-  const currentLevel = s.level || (parent && parent.level) || '표현력';
+  const allowedLevels = getParentLevels(parent);
+  let currentLevel = s.level || (parent && parent.level) || allowedLevels[0] || '표현력';
+  if (!allowedLevels.includes(currentLevel)) currentLevel = allowedLevels[0];
   const currentStage = s.stage || 1;
 
   selectedLevel = currentLevel;
   selectedStage = currentStage;
 
-  const photoHtml = s.photo_path
-    ? `<img class="photo-full" src="/uploads/${s.photo_path.split('/').pop()}" onerror="this.style.display='none'" />`
+  const photoPaths = getSubmissionPhotoPaths(s);
+  const photoHtml = photoPaths.length > 0
+    ? `<div class="photo-gallery">
+        ${photoPaths.map(path => `
+          <img class="photo-full" src="${uploadUrl(path)}" onerror="this.style.display='none'" />
+        `).join('')}
+      </div>`
     : `<div class="no-photo">📄</div>`;
 
   const stageOptions = Object.entries(LEVELS[currentLevel]?.stages || {})
@@ -1003,14 +1730,31 @@ function renderSubmissionModal(s) {
 
   const feedbackValue = s.feedback_draft || '';
   const isSent = s.status === 'sent';
+  const isApproved = s.status === 'approved';
+  const sendButtonText = isApproved ? '다시 전송' : '승인 후 카카오 전송';
+  const needsPhone = parent && !parent.phone_number;
+  const parentId = parent ? parent.id : null;
 
   document.getElementById('submission-modal-body').innerHTML = `
     ${photoHtml}
 
+    ${needsPhone ? `
+    <div class="phone-warning-card">
+      <strong>친구톡 발송을 위해 전화번호 등록이 필요해요</strong>
+      채널에서 온 사진·카카오 연결은 이미 되어 있어요. 아래에서 <strong>전화번호</strong>와 <strong>내부 관리명</strong>만 넣으면
+      「승인 후 카카오 전송」이 가능합니다. (카카오 연결 ID는 수정하지 않아도 됩니다)
+      <button type="button" class="btn btn-outline btn-sm" onclick="openEditParentFromSubmission(${parentId})">전화번호 등록하기</button>
+    </div>
+    ` : ''}
+
     <div class="child-info-card">
       <div class="child-info-row">
-        <span class="label">아이 이름</span>
-        <span class="value">${childName}</span>
+        <span class="label">내부 관리명</span>
+        <span class="value">${escapeHtml(childName)}</span>
+      </div>
+      <div class="child-info-row">
+        <span class="label">전화번호</span>
+        <span class="value">${parent && parent.phone_number ? escapeHtml(parent.phone_number) : '미등록 (친구톡 불가)'}</span>
       </div>
       <div class="child-info-row">
         <span class="label">나이</span>
@@ -1020,14 +1764,18 @@ function renderSubmissionModal(s) {
         <span class="label">현재 상태</span>
         <span class="value"><span class="status-badge status-${s.status}">${statusLabel(s.status)}</span></span>
       </div>
+      <div class="child-info-row">
+        <span class="label">제출 시각</span>
+        <span class="value">${formatDate(s.created_at)}</span>
+      </div>
     </div>
 
-    ${isSent ? '<div style="text-align:center; padding:8px 0 16px; color: var(--success); font-weight:700;">✅ 이미 전송된 피드백입니다</div>' : ''}
+    ${isSent ? '<div class="sent-banner">이미 전송된 피드백입니다</div>' : ''}
 
     <div class="form-group">
       <label>레벨 선택</label>
       <div class="level-selector" id="modal-level-btns">
-        ${Object.keys(LEVELS).map(lk => `
+        ${allowedLevels.map(lk => `
           <button type="button" class="level-btn ${lk === currentLevel ? 'active' : ''}"
             data-level="${lk}" onclick="selectModalLevel(this)">
             ${lk}<br><small style="font-weight:400">${lk==='표현력'?'7~8세':lk==='초등기초'?'9~11세':'11~13세'}</small>
@@ -1048,24 +1796,26 @@ function renderSubmissionModal(s) {
     </div>
 
     <button class="btn btn-primary" id="generate-btn" onclick="generateFeedback()" ${isSent ? 'disabled' : ''}>
-      ✨ 피드백 생성
+      피드백 생성
     </button>
 
     <div id="feedback-section" style="${feedbackValue ? '' : 'display:none'}; margin-top:20px;">
       <div class="divider"></div>
       <div class="form-group">
         <label>생성된 피드백 (수정 가능)</label>
-        <textarea class="feedback-area" id="modal-feedback" rows="6">${feedbackValue}</textarea>
+        <textarea class="feedback-area" id="modal-feedback" rows="6">${escapeHtml(feedbackValue)}</textarea>
       </div>
-      <div class="btn-row">
-        <button type="button" class="btn btn-outline" onclick="copyFeedback()">
-          복사하기
+      <div class="feedback-actions">
+        <button class="btn btn-success btn-send-kakao" id="approve-btn" data-retry="${isApproved ? 'true' : 'false'}" onclick="approveFeedback()" ${isSent || needsPhone ? 'disabled' : ''} title="${needsPhone ? '전화번호 등록 후 카카오 전송 가능' : ''}">
+          ${sendButtonText}
         </button>
-        <button type="button" class="btn btn-success" id="approve-btn" onclick="approveFeedback()" ${isSent ? 'disabled' : ''}>
-          카카오 전송
+        <button class="btn btn-outline btn-mark-sent" id="mark-sent-btn" onclick="markSentManually()" ${isSent ? 'disabled' : ''} type="button">
+          직접 전송 완료
+        </button>
+        <button class="btn btn-outline copy-feedback-btn" id="copy-feedback-btn" onclick="copyFeedback()" type="button">
+          복사
         </button>
       </div>
-      <p class="hint" style="margin-top:10px">로컬: 복사 후 카톡 붙여넣기 · 자동 전송은 오른쪽</p>
     </div>
   `;
 }
@@ -1111,7 +1861,88 @@ async function generateFeedback() {
     toast('❌ 오류: ' + e.message, 4000);
   } finally {
     btn.disabled = false;
-    btn.innerHTML = '✨ 피드백 생성';
+    btn.innerHTML = '피드백 생성';
+  }
+}
+
+// ===== Copy Feedback =====
+async function writeClipboardText(text) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const temp = document.createElement('textarea');
+  temp.value = text;
+  temp.setAttribute('readonly', '');
+  temp.style.position = 'fixed';
+  temp.style.top = '-9999px';
+  document.body.appendChild(temp);
+  temp.select();
+
+  try {
+    const copied = document.execCommand('copy');
+    if (!copied) throw new Error('copy failed');
+  } finally {
+    temp.remove();
+  }
+}
+
+async function copyFeedback() {
+  const feedbackText = document.getElementById('modal-feedback')?.value || '';
+  const btn = document.getElementById('copy-feedback-btn');
+  const originalText = btn?.textContent.trim() || '복사';
+
+  if (!feedbackText.trim()) {
+    toast('복사할 피드백이 없습니다.', 2000);
+    return;
+  }
+
+  try {
+    await writeClipboardText(feedbackText);
+    toast('피드백을 복사했습니다.');
+    if (btn) {
+      btn.textContent = '복사됨';
+      setTimeout(() => {
+        if (document.getElementById('copy-feedback-btn') === btn) {
+          btn.textContent = originalText;
+        }
+      }, 1500);
+    }
+  } catch (e) {
+    toast('❌ 복사 실패: 브라우저 권한을 확인해 주세요.', 3000);
+  }
+}
+
+// ===== Mark sent manually (no Solapi) =====
+async function markSentManually() {
+  const btn = document.getElementById('mark-sent-btn');
+  const feedbackText = document.getElementById('modal-feedback')?.value || '';
+
+  if (!feedbackText.trim()) {
+    toast('피드백 내용을 입력해 주세요.', 2000);
+    return;
+  }
+
+  if (!confirm('카카오 API 없이 전송 완료로 표시합니다.\n(다른 경로로 이미 보낸 경우에 사용)')) return;
+
+  btn.disabled = true;
+  const prevText = btn.textContent;
+  btn.innerHTML = '<span class="spinner"></span>';
+
+  try {
+    await api(`/admin/submissions/${currentSubmissionId}/mark-sent`, {
+      method: 'POST',
+      body: JSON.stringify({ feedback_text: feedbackText }),
+    });
+    toast('✅ 직접 전송 완료 처리되었습니다.');
+    closeModal('submission-modal');
+    loadPending();
+    loadHistory();
+  } catch (e) {
+    toast('❌ 처리 실패: ' + e.message, 4000);
+    btn.disabled = false;
+    btn.textContent = prevText;
   }
 }
 
@@ -1131,8 +1962,11 @@ async function approveFeedback() {
   btn.innerHTML = '<span class="spinner"></span> 전송 중...';
 
   try {
-    const result = await api(`/admin/submissions/${currentSubmissionId}/approve`, {
-      method: 'PUT',
+    const endpoint = btn.dataset.retry === 'true'
+      ? `/admin/submissions/${currentSubmissionId}/retry-send`
+      : `/admin/submissions/${currentSubmissionId}/approve`;
+    const result = await api(endpoint, {
+      method: btn.dataset.retry === 'true' ? 'POST' : 'PUT',
       body: JSON.stringify({ feedback_text: feedbackText }),
     });
     toast('✅ 피드백이 전송되었습니다!');
@@ -1141,7 +1975,7 @@ async function approveFeedback() {
   } catch (e) {
     toast('❌ 전송 실패: ' + e.message, 4000);
     btn.disabled = false;
-    btn.innerHTML = '✅ 승인 후 카카오 전송';
+    btn.innerHTML = btn.dataset.retry === 'true' ? '다시 전송' : '승인 후 카카오 전송';
   }
 }
 
@@ -1150,45 +1984,16 @@ async function loadHistory() {
   const container = document.getElementById('history-list');
   container.innerHTML = '<div class="loading">불러오는 중...</div>';
   try {
-    const submissions = await api('/admin/submissions');
+    const submissions = sortSubmissionsNewestFirst(await api('/admin/submissions'));
     if (submissions.length === 0) {
       container.innerHTML = `<div class="empty"><div class="icon">📂</div><p>이력이 없습니다</p></div>`;
       return;
     }
 
-    // Group by parent
-    const byParent = {};
-    submissions.forEach(s => {
-      const key = s.parent ? s.parent.id : 'unknown';
-      if (!byParent[key]) byParent[key] = { parent: s.parent, submissions: [] };
-      byParent[key].submissions.push(s);
-    });
-
-    container.innerHTML = Object.values(byParent).map(group => {
-      const parent = group.parent;
-      const name = parent ? parent.child_name : '미등록';
-      const itemsHtml = group.submissions.map(s => `
-        <div class="history-item">
-          <div class="history-meta">
-            <span class="history-level">${s.level || '-'} ${s.stage ? s.stage+'단계' : ''}</span>
-            <span style="font-size:12px; color:var(--text-muted)">${formatDate(s.created_at)}</span>
-          </div>
-          <div style="margin-bottom:4px">
-            <span class="status-badge status-${s.status}">${statusLabel(s.status)}</span>
-          </div>
-          ${s.feedback_draft
-            ? `<div class="history-feedback truncated">${s.feedback_draft}</div>`
-            : `<div style="font-size:12px; color:var(--text-muted)">피드백 없음</div>`
-          }
-        </div>
-      `).join('');
-
-      return `
-        <div class="card">
-          <div style="padding:12px 16px 4px; font-weight:700; font-size:15px;">${name}</div>
-          ${itemsHtml}
-        </div>`;
-    }).join('');
+    container.innerHTML = `
+      <div class="card">
+        ${submissions.map(s => renderHistoryItem(s, { showParentName: true, clickable: true })).join('')}
+      </div>`;
   } catch (e) {
     container.innerHTML = `<div class="empty"><div class="icon">⚠️</div><p>${e.message}</p></div>`;
   }
@@ -1199,71 +2004,100 @@ async function loadParents() {
   const container = document.getElementById('parents-list');
   container.innerHTML = '<div class="loading">불러오는 중...</div>';
   try {
-    const parents = await api('/admin/parents');
-    if (parents.length === 0) {
-      container.innerHTML = `
-        <div class="empty">
-          <div class="icon">👨‍👩‍👧</div>
-          <p>등록된 학부모가 없어요.<br>+ 추가 버튼으로 등록해 주세요.</p>
-        </div>`;
-      return;
-    }
-    container.innerHTML = `
-      <div class="card">
-        ${parents.map(p => `
-          <div class="parent-item" onclick="openParentHistory(${p.id}, '${p.child_name}')">
-            <div>
-              <div class="parent-name">${p.child_name}</div>
-              <div class="parent-sub">${p.level} · ${p.child_age ? p.child_age+'세' : '나이 미입력'} · 제출 ${p.submission_count}건</div>
-              <div class="parent-sub" style="font-size:11px; margin-top:2px; color:#aaa">${p.phone_number || '전화번호 미등록'} · ${p.kakao_user_id}</div>
-            </div>
-            <span style="color:var(--text-muted); font-size:18px;">›</span>
-          </div>
-        `).join('')}
-      </div>`;
+    await refreshParentsCache();
+    renderParentsList();
   } catch (e) {
-    container.innerHTML = `<div class="empty"><div class="icon">⚠️</div><p>${e.message}</p></div>`;
+    cachedParents = [];
+    container.innerHTML = `<div class="empty"><div class="icon">⚠️</div><p>${escapeHtml(e.message)}</p></div>`;
   }
 }
 
 function openAddParent() {
+  currentParentId = null;
   document.getElementById('parent-modal-title').textContent = '학부모 추가';
   document.getElementById('parent-form').reset();
-  document.getElementById('p-level').value = '표현력';
-  document.querySelectorAll('#parent-form .level-btn').forEach((b, i) => {
-    b.classList.toggle('active', i === 0);
-  });
-  document.getElementById('p-kakao-id').removeAttribute('readonly');
+  setParentLevelsUI(['표현력']);
+  document.getElementById('p-kakao-id').value = '';
   openModal('parent-modal');
 }
 
+function openEditParentFromSubmission(parentId) {
+  openEditParent(parentId);
+}
+
+async function deleteParent(parentId) {
+  if (!confirm('이 학부모와 연결된 제출·이력도 모두 삭제됩니다. 정말 삭제할까요?')) return;
+  try {
+    await api(`/admin/parents/${parentId}`, { method: 'DELETE' });
+    toast('삭제되었습니다');
+    await refreshParentsCache();
+    loadPending();
+  } catch (e) {
+    toast('❌ 삭제 실패: ' + e.message, 4000);
+  }
+}
+
+async function openEditParent(parentId) {
+  currentParentId = parentId;
+  document.getElementById('parent-modal-title').textContent = '학부모 수정';
+  document.getElementById('parent-form').reset();
+  openModal('parent-modal');
+
+  try {
+    const p = await api(`/admin/parents/${parentId}`);
+    const kakaoId = p.kakao_user_id || '';
+    document.getElementById('p-kakao-id').value = kakaoId.startsWith('pending:') ? '' : kakaoId;
+    document.getElementById('p-child-name').value = p.child_name || '';
+    document.getElementById('p-phone').value = p.phone_number || '';
+    document.getElementById('p-child-age').value = p.child_age || '';
+    setParentLevelsUI(p.levels || (p.level ? [p.level] : ['표현력']));
+  } catch (e) {
+    toast('❌ 오류: ' + e.message, 4000);
+    closeModal('parent-modal');
+  }
+}
+
 function selectParentLevel(btn) {
-  document.querySelectorAll('#parent-form .level-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  document.getElementById('p-level').value = btn.dataset.level;
+  btn.classList.toggle('active');
+  if (getSelectedParentLevels().length === 0) {
+    btn.classList.add('active');
+    toast('최소 1개 레벨을 선택해주세요.', 2000);
+  }
 }
 
 async function saveParent(e) {
   e.preventDefault();
+  const levels = getSelectedParentLevels();
+  if (levels.length === 0) {
+    toast('수강 레벨을 1개 이상 선택해주세요.', 2500);
+    return;
+  }
+
   const btn = document.getElementById('parent-save-btn');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span>';
 
   try {
-    await api('/admin/parents', {
-      method: 'POST',
-      body: JSON.stringify({
-        kakao_user_id: document.getElementById('p-kakao-id').value.trim(),
-        phone_number: document.getElementById('p-phone').value.trim() || null,
-        child_name: document.getElementById('p-child-name').value.trim(),
-        child_age: parseInt(document.getElementById('p-child-age').value) || null,
-        level: document.getElementById('p-level').value,
-      }),
+    const payload = {
+      phone_number: document.getElementById('p-phone').value.trim(),
+      child_name: document.getElementById('p-child-name').value.trim(),
+      child_age: parseInt(document.getElementById('p-child-age').value) || null,
+      levels,
+      level: levels[0],
+    };
+    const kakaoId = document.getElementById('p-kakao-id').value.trim();
+    if (kakaoId) payload.kakao_user_id = kakaoId;
+    await api(currentParentId ? `/admin/parents/${currentParentId}` : '/admin/parents', {
+      method: currentParentId ? 'PUT' : 'POST',
+      body: JSON.stringify(payload),
     });
     toast('저장되었습니다 ✅');
     closeModal('parent-modal');
-    loadParents();
-    refreshUploadParentSelect();
+    await refreshParentsCache();
+    if (currentSubmissionId && document.getElementById('submission-modal').classList.contains('open')) {
+      const s = await api(`/admin/submissions/${currentSubmissionId}`);
+      renderSubmissionModal(s);
+    }
   } catch (e) {
     toast('❌ 오류: ' + e.message, 4000);
   } finally {
@@ -1272,14 +2106,15 @@ async function saveParent(e) {
   }
 }
 
-async function openParentHistory(parentId, childName) {
-  document.getElementById('parent-history-title').textContent = `${childName} 학습 이력`;
+async function openParentHistory(parentId) {
+  document.getElementById('parent-history-title').textContent = '학습 이력';
   document.getElementById('parent-history-body').innerHTML = '<div class="loading">불러오는 중...</div>';
   openModal('parent-history-modal');
 
   try {
     const data = await api(`/admin/parents/${parentId}/history`);
-    const subs = data.submissions;
+    const subs = sortSubmissionsNewestFirst(data.submissions);
+    document.getElementById('parent-history-title').textContent = `${data.parent.child_name} 학습 이력`;
 
     if (subs.length === 0) {
       document.getElementById('parent-history-body').innerHTML =
@@ -1290,31 +2125,17 @@ async function openParentHistory(parentId, childName) {
     document.getElementById('parent-history-body').innerHTML = `
       <div style="background:var(--bg); border-radius:10px; padding:12px 14px; margin-bottom:16px;">
         <div class="child-info-row">
-          <span class="label">이름</span><span class="value">${data.parent.child_name}</span>
+          <span class="label">내부 관리명</span><span class="value">${data.parent.child_name}</span>
         </div>
         <div class="child-info-row">
-          <span class="label">레벨</span><span class="value">${data.parent.level}</span>
+          <span class="label">레벨</span><span class="value">${escapeHtml(formatParentLevels(data.parent))}</span>
         </div>
         <div class="child-info-row">
           <span class="label">제출 수</span><span class="value">${subs.length}건</span>
         </div>
       </div>
       <div class="card">
-        ${subs.map(s => `
-          <div class="history-item" onclick="openSubmission(${s.id}); closeModal('parent-history-modal');" style="cursor:pointer">
-            <div class="history-meta">
-              <span class="history-level">${s.level || '-'} ${s.stage ? s.stage+'단계' : ''}</span>
-              <span style="font-size:12px; color:var(--text-muted)">${formatDate(s.created_at)}</span>
-            </div>
-            <div style="margin-bottom:6px">
-              <span class="status-badge status-${s.status}">${statusLabel(s.status)}</span>
-            </div>
-            ${s.feedback_draft
-              ? `<div class="history-feedback truncated">${s.feedback_draft}</div>`
-              : `<div style="font-size:12px; color:var(--text-muted)">피드백 없음</div>`
-            }
-          </div>
-        `).join('')}
+        ${subs.map(s => renderHistoryItem(s, { clickable: true, closeParentHistoryModal: true })).join('')}
       </div>`;
   } catch (err) {
     document.getElementById('parent-history-body').innerHTML =
@@ -1324,14 +2145,45 @@ async function openParentHistory(parentId, childName) {
 
 // ===== Init =====
 document.addEventListener('DOMContentLoaded', () => {
-  initUploadHandlers();
-  refreshUploadParentSelect();
+  loadUploadParents();
   loadPending();
-  // Auto-refresh pending every 60 seconds
+
+  document.getElementById('upload-parent-search')?.addEventListener('input', renderUploadParentSelect);
+  document.getElementById('parents-search')?.addEventListener('input', renderParentsList);
+
+  const photoInput = document.getElementById('direct-photo-input');
+  const pasteZone = document.getElementById('paste-zone');
+
+  photoInput?.addEventListener('change', e => {
+    addDirectUploadFiles(e.target.files);
+    e.target.value = '';
+  });
+
+  setPasteZoneHint(pasteZoneDefaultHint());
+
+  pasteZone?.addEventListener('click', () => { void handlePasteZoneActivate(); });
+  pasteZone?.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      void handlePasteZoneActivate();
+    }
+  });
+  pasteZone?.addEventListener('paste', e => {
+    e.preventDefault();
+    const ok = addFilesFromClipboardData(e.clipboardData);
+    restorePasteZoneDisplay();
+    if (!ok) toast('클립보드에서 이미지를 찾지 못했습니다.', 2500);
+  });
+  pasteZone?.addEventListener('input', () => {
+    restorePasteZoneDisplay();
+  });
+
   setInterval(() => {
     const pendingPanel = document.getElementById('panel-pending');
-    if (pendingPanel.classList.contains('active')) loadPending();
-  }, 60000);
+    if (pendingPanel?.classList.contains('active')) loadPending();
+    const historyPanel = document.getElementById('panel-history');
+    if (historyPanel?.classList.contains('active')) loadHistory();
+  }, PENDING_REFRESH_MS);
 });
 </script>
 </body>

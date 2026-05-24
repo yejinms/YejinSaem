@@ -1,0 +1,11 @@
+# Railway — deploy from repository root (Root Directory must be empty).
+# Uses Dockerfile so Railpack does not need to detect Python.
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 120
+restartPolicyType = "on_failure"

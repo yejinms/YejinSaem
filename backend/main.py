@@ -38,11 +38,18 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# CORS middleware - allow all origins for admin dashboard
+# CORS: credentials=True + allow_origins=["*"] breaks browser cross-origin reads.
+# Open Builder skill test (chatbot.kakao.com) needs explicit origins.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=[
+        "https://chatbot.kakao.com",
+        "https://i.kakao.com",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+    ],
+    allow_origin_regex=r"https://.*\.up\.railway\.app",
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -57,12 +64,6 @@ UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", "./uploads"))
 UPLOAD_DIR.mkdir(exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
 
-# Serve frontend static files
-FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
-if FRONTEND_DIR.exists():
-    app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
-
-
 @app.on_event("startup")
 def on_startup():
     """Initialize database tables on startup."""
@@ -76,6 +77,12 @@ def on_startup():
 def health_check():
     """Health check endpoint."""
     return {"status": "ok", "service": "YejinSaem"}
+
+
+# Serve frontend static files after API routes so it does not shadow them.
+FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
+if FRONTEND_DIR.exists():
+    app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
 
 
 if __name__ == "__main__":

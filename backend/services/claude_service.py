@@ -56,20 +56,12 @@ def _validate_api_key() -> str:
     return (os.getenv("ANTHROPIC_API_KEY") or "").strip()
 
 
-def generate_feedback(
-    image_path: str,
-    level_key: str,
-    stage_num: int,
-    child_name: str,
-    extra_instruction: str = "",
-    previous_feedbacks: list = None,
-) -> str:
-    """
-    Generate writing feedback using Claude vision.
-    """
-    api_key = _validate_api_key()
-    client = anthropic.Anthropic(api_key=api_key)
+def _sanitize_feedback(text: str) -> str:
+    """Remove markdown bold markers the model must not emit."""
+    return text.replace("**", "")
 
+
+def _image_content_block(image_path: str) -> dict:
     image_path_obj = Path(image_path)
     if not image_path_obj.is_file():
         image_path_obj = BACKEND_DIR / image_path
@@ -89,13 +81,46 @@ def generate_feedback(
     }
     media_type = media_type_map.get(ext, "image/jpeg")
 
+    return {
+        "type": "image",
+        "source": {
+            "type": "base64",
+            "media_type": media_type,
+            "data": image_data,
+        },
+    }
+
+
+def generate_feedback(
+    image_path: str | list[str],
+    level_key: str,
+    stage_num: int,
+    extra_instruction: str = "",
+    previous_feedbacks: list = None,
+) -> str:
+    """
+    Generate writing feedback using Claude vision.
+
+    Registration names are never passed to the model (privacy).
+    """
+    api_key = _validate_api_key()
+    client = anthropic.Anthropic(api_key=api_key)
+
+    image_paths = image_path if isinstance(image_path, list) else [image_path]
+    if not image_paths:
+        raise FileNotFoundError("No image files provided")
+
     user_prompt = get_feedback_user_prompt(
         level_key=level_key,
         stage_num=stage_num,
-        child_name=child_name,
         extra_instruction=extra_instruction,
         previous_feedbacks=previous_feedbacks or [],
     )
+    content_blocks = [_image_content_block(path) for path in image_paths]
+    content_blocks.append({
+        "type": "text",
+        "text": user_prompt,
+    })
 
     try:
         response = client.messages.create(
@@ -105,20 +130,7 @@ def generate_feedback(
             messages=[
                 {
                     "role": "user",
-                    "content": [
-                        {
-                            "type": "image",
-                            "source": {
-                                "type": "base64",
-                                "media_type": media_type,
-                                "data": image_data,
-                            },
-                        },
-                        {
-                            "type": "text",
-                            "text": user_prompt,
-                        },
-                    ],
+                    "content": content_blocks,
                 }
             ],
         )
@@ -136,4 +148,4 @@ def generate_feedback(
             ) from e
         raise
 
-    return response.content[0].text
+    return _sanitize_feedback(response.content[0].text)
