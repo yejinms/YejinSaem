@@ -3,16 +3,24 @@ claude_service.py - Claude AI integration for generating writing feedback
 """
 
 import base64
+import io
+import logging
 import os
 from pathlib import Path
 
 import anthropic
 from dotenv import load_dotenv
+from PIL import Image
 
 from prompts import get_feedback_user_prompt, get_system_prompt
 
+logger = logging.getLogger(__name__)
+
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BACKEND_DIR / ".env")
+
+# Anthropic vision limit: 5_242_880 bytes per image
+MAX_ANTHROPIC_IMAGE_BYTES = 4_900_000
 
 
 def get_anthropic_key_status() -> dict:
@@ -61,16 +69,39 @@ def _sanitize_feedback(text: str) -> str:
     return text.replace("**", "")
 
 
-def _image_content_block(image_path: str) -> dict:
+def _resolve_image_path(image_path: str) -> Path:
     image_path_obj = Path(image_path)
     if not image_path_obj.is_file():
         image_path_obj = BACKEND_DIR / image_path
     if not image_path_obj.is_file():
         raise FileNotFoundError(f"Image file not found: {image_path}")
+    return image_path_obj
 
-    with open(image_path_obj, "rb") as f:
-        image_data = base64.standard_b64encode(f.read()).decode("utf-8")
 
+def _fit_image(img: Image.Image, max_side: int) -> Image.Image:
+    width, height = img.size
+    longest = max(width, height)
+    if longest <= max_side:
+        return img
+    scale = max_side / longest
+    new_size = (max(1, int(width * scale)), max(1, int(height * scale)))
+    return img.resize(new_size, Image.Resampling.LANCZOS)
+
+
+def _to_rgb_image(img: Image.Image) -> Image.Image:
+    if img.mode in ("RGBA", "LA"):
+        background = Image.new("RGB", img.size, (255, 255, 255))
+        background.paste(img, mask=img.split()[-1])
+        return background
+    if img.mode == "P":
+        return img.convert("RGBA").convert("RGB")
+    return img.convert("RGB")
+
+
+def encode_image_for_api(image_path: str) -> tuple[bytes, str]:
+    """Return image bytes and media type, compressing when over Anthropic's 5MB limit."""
+    image_path_obj = _resolve_image_path(image_path)
+    raw = image_path_obj.read_bytes()
     ext = image_path_obj.suffix.lower()
     media_type_map = {
         ".jpg": "image/jpeg",
@@ -79,7 +110,46 @@ def _image_content_block(image_path: str) -> dict:
         ".gif": "image/gif",
         ".webp": "image/webp",
     }
-    media_type = media_type_map.get(ext, "image/jpeg")
+
+    if len(raw) <= MAX_ANTHROPIC_IMAGE_BYTES:
+        return raw, media_type_map.get(ext, "image/jpeg")
+
+    logger.info(
+        "Compressing image for Claude API: %s (%s bytes)",
+        image_path_obj.name,
+        len(raw),
+    )
+
+    with Image.open(io.BytesIO(raw)) as img:
+        if getattr(img, "is_animated", False):
+            img.seek(0)
+        rgb = _to_rgb_image(img)
+
+        for max_side in (2048, 1600, 1280, 1024, 800, 640):
+            resized = _fit_image(rgb, max_side)
+            for quality in (85, 75, 65, 55, 45, 35):
+                buffer = io.BytesIO()
+                resized.save(buffer, format="JPEG", quality=quality, optimize=True)
+                data = buffer.getvalue()
+                if len(data) <= MAX_ANTHROPIC_IMAGE_BYTES:
+                    logger.info(
+                        "Compressed %s to %s bytes (%spx, q=%s)",
+                        image_path_obj.name,
+                        len(data),
+                        max_side,
+                        quality,
+                    )
+                    return data, "image/jpeg"
+
+    raise ValueError(
+        f"이미지 '{image_path_obj.name}'가 너무 커서 분석할 수 없습니다. "
+        "더 작은 사진으로 다시 업로드해 주세요."
+    )
+
+
+def _image_content_block(image_path: str) -> dict:
+    image_bytes, media_type = encode_image_for_api(image_path)
+    image_data = base64.standard_b64encode(image_bytes).decode("utf-8")
 
     return {
         "type": "image",
@@ -145,6 +215,10 @@ def generate_feedback(
         if e.status_code == 401:
             raise ValueError(
                 "Anthropic 인증 실패(401). API 키를 재발급하고 backend/.env를 수정한 뒤 서버를 재시작해 주세요."
+            ) from e
+        if e.status_code == 400 and "image exceeds" in str(e):
+            raise ValueError(
+                "사진 용량이 커서 분석하지 못했습니다. 더 작은 사진으로 다시 업로드해 주세요."
             ) from e
         raise
 
