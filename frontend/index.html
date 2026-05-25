@@ -1242,6 +1242,28 @@ function formatApiErrorDetail(detail) {
   return String(detail);
 }
 
+let adminTokenPrompt = null;
+
+function requestAdminToken() {
+  const cached = sessionStorage.getItem(ADMIN_TOKEN_KEY);
+  if (cached) return Promise.resolve(cached);
+
+  if (!adminTokenPrompt) {
+    adminTokenPrompt = new Promise((resolve, reject) => {
+      const password = prompt('관리자 비밀번호를 입력해주세요.');
+      if (!password) {
+        reject(new Error('관리자 비밀번호가 필요합니다.'));
+        return;
+      }
+      sessionStorage.setItem(ADMIN_TOKEN_KEY, password);
+      resolve(password);
+    }).finally(() => {
+      adminTokenPrompt = null;
+    });
+  }
+  return adminTokenPrompt;
+}
+
 async function api(path, opts = {}) {
   const headers = { ...(opts.headers || {}) };
   if (!(opts.body instanceof FormData)) {
@@ -1257,12 +1279,9 @@ async function api(path, opts = {}) {
     headers,
   });
   if (res.status === 401) {
-    sessionStorage.removeItem(ADMIN_TOKEN_KEY);
-    const password = prompt('관리자 비밀번호를 입력해주세요.');
-    if (password) {
-      sessionStorage.setItem(ADMIN_TOKEN_KEY, password);
-      return api(path, opts);
-    }
+    if (token) sessionStorage.removeItem(ADMIN_TOKEN_KEY);
+    await requestAdminToken();
+    return api(path, opts);
   }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
