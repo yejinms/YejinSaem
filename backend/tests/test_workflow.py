@@ -143,6 +143,73 @@ def test_delete_parent_removes_submissions():
     db.close()
 
 
+def test_delete_submission():
+    parent_id = create_parent()
+    image_path = "test_uploads/delete-me.png"
+    Path(image_path).write_bytes(b"image-bytes")
+
+    db = SessionLocal()
+    submission = Submission(
+        parent_id=parent_id,
+        photo_path=image_path,
+        status="pending",
+    )
+    db.add(submission)
+    db.commit()
+    db.refresh(submission)
+    submission_id = submission.id
+    db.close()
+
+    res = client.delete(f"/admin/submissions/{submission_id}")
+    assert res.status_code == 204
+    assert submission_count() == 0
+    assert not Path(image_path).exists()
+
+
+def test_generate_passes_previous_feedback_contexts(monkeypatch):
+    parent_id = create_parent()
+    image_path = "test_uploads/current.png"
+    Path(image_path).write_bytes(b"image-bytes")
+
+    db = SessionLocal()
+    past = Submission(
+        parent_id=parent_id,
+        status="sent",
+        level="표현력",
+        stage=3,
+        feedback_draft="지난 피드백: 소재를 구체적으로 잘 골랐어요.",
+    )
+    current = Submission(
+        parent_id=parent_id,
+        photo_path=image_path,
+        status="pending",
+    )
+    db.add_all([past, current])
+    db.commit()
+    db.refresh(current)
+    submission_id = current.id
+    db.close()
+
+    captured = {}
+
+    def fake_generate_feedback(**kwargs):
+        captured.update(kwargs)
+        return "새 피드백"
+
+    monkeypatch.setattr(admin_router, "generate_feedback", fake_generate_feedback)
+    res = client.post(
+        f"/admin/submissions/{submission_id}/generate",
+        json={"level": "표현력", "stage": 4, "extra_instruction": ""},
+    )
+    assert res.status_code == 200
+    contexts = captured["previous_contexts"]
+    assert len(contexts) == 1
+    assert contexts[0]["status"] == "sent"
+    assert contexts[0]["stage"] == 3
+    assert contexts[0]["stage_title"] == "소재를 구체적으로 고르기"
+    assert "지난 피드백" in contexts[0]["feedback_excerpt"]
+
+
 def test_admin_auth_when_password_is_configured(monkeypatch):
     monkeypatch.setenv("ADMIN_PASSWORD", "관리자-secret")
     assert client.get("/admin/parents").status_code == 401

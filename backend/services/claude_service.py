@@ -163,6 +163,7 @@ def generate_feedback(
     stage_num: int,
     extra_instruction: str = "",
     previous_feedbacks: list = None,
+    previous_contexts: list = None,
 ) -> str:
     """
     Generate writing feedback using Claude vision.
@@ -181,6 +182,7 @@ def generate_feedback(
         stage_num=stage_num,
         extra_instruction=extra_instruction,
         previous_feedbacks=previous_feedbacks or [],
+        previous_contexts=previous_contexts or [],
     )
     content_blocks = [_image_content_block(path) for path in image_paths]
     content_blocks.append({

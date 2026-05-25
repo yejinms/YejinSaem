@@ -19,6 +19,7 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 from database import Parent, Submission, get_db
 from datetime_utils import to_utc_iso
 from levels_utils import apply_parent_levels, parent_levels_for_api, resolve_levels_input
+from feedback_history import build_previous_feedback_contexts
 from services.claude_service import generate_feedback, get_anthropic_key_status
 from services.outbound_privacy import sanitize_channel_feedback
 from services.kakao_service import send_feedback_message
@@ -305,7 +306,6 @@ def generate_submission_feedback(
     if not (1 <= body.stage <= 10):
         raise HTTPException(status_code=400, detail="Stage must be between 1 and 10")
 
-    # Get recent feedbacks for this child to avoid repetition
     recent_submissions = (
         db.query(Submission)
         .filter(
@@ -314,10 +314,10 @@ def generate_submission_feedback(
             Submission.id != submission_id,
         )
         .order_by(Submission.created_at.desc())
-        .limit(3)
+        .limit(10)
         .all()
     )
-    previous_feedbacks = [rs.feedback_draft for rs in recent_submissions if rs.feedback_draft]
+    previous_contexts = build_previous_feedback_contexts(recent_submissions)
 
     try:
         feedback_text = sanitize_channel_feedback(
@@ -326,7 +326,7 @@ def generate_submission_feedback(
                 level_key=body.level,
                 stage_num=body.stage,
                 extra_instruction=body.extra_instruction or "",
-                previous_feedbacks=previous_feedbacks,
+                previous_contexts=previous_contexts,
             ),
             parent,
         )
@@ -354,6 +354,18 @@ def generate_submission_feedback(
         "level": s.level,
         "stage": s.stage,
     }
+
+
+@router.delete("/submissions/{submission_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_submission(submission_id: int, db: Session = Depends(get_db)):
+    """Delete a single submission and its uploaded photos."""
+    submission = db.query(Submission).filter(Submission.id == submission_id).first()
+    if not submission:
+        raise HTTPException(status_code=404, detail="Submission not found")
+
+    delete_submission_files(submission)
+    db.delete(submission)
+    db.commit()
 
 
 @router.put("/submissions/{submission_id}/approve")

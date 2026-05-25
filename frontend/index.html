@@ -1807,9 +1807,12 @@ function renderSubmissionModal(s) {
       <textarea id="modal-extra" placeholder="예: 칭찬 위주로, 다음 미션 제안 포함 등">${s.extra_instruction || ''}</textarea>
     </div>
 
-    <button class="btn btn-primary" id="generate-btn" onclick="generateFeedback()" ${isSent ? 'disabled' : ''}>
-      피드백 생성
-    </button>
+    <div class="feedback-actions" style="margin-top:0; margin-bottom:12px;">
+      <button class="btn btn-primary" id="generate-btn" onclick="generateFeedback()" ${isSent ? 'disabled' : ''}>
+        피드백 생성
+      </button>
+      <button class="btn btn-danger btn-sm" type="button" onclick="deleteSubmission(${s.id})">제출 삭제</button>
+    </div>
 
     <div id="feedback-section" style="${feedbackValue ? '' : 'display:none'}; margin-top:20px;">
       <div class="divider"></div>
@@ -2037,13 +2040,32 @@ function openEditParentFromSubmission(parentId) {
   openEditParent(parentId);
 }
 
+async function deleteSubmission(submissionId) {
+  if (!confirm('이 제출과 첨부 사진·피드백 초안이 삭제됩니다. 정말 삭제할까요?')) return;
+  try {
+    await api(`/admin/submissions/${submissionId}`, { method: 'DELETE' });
+    toast('제출이 삭제되었습니다');
+    closeModal('submission-modal');
+    currentSubmissionId = null;
+    loadPending();
+    const historyPanel = document.getElementById('panel-history');
+    if (historyPanel?.classList.contains('active')) loadHistory();
+  } catch (e) {
+    toast('❌ 삭제 실패: ' + e.message, 4000);
+  }
+}
+
 async function deleteParent(parentId) {
   if (!confirm('이 학부모와 연결된 제출·이력도 모두 삭제됩니다. 정말 삭제할까요?')) return;
   try {
     await api(`/admin/parents/${parentId}`, { method: 'DELETE' });
     toast('삭제되었습니다');
+    closeModal('submission-modal');
+    currentSubmissionId = null;
     await refreshParentsCache();
     loadPending();
+    const historyPanel = document.getElementById('panel-history');
+    if (historyPanel?.classList.contains('active')) loadHistory();
   } catch (e) {
     toast('❌ 삭제 실패: ' + e.message, 4000);
   }
