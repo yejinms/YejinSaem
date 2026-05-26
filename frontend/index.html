@@ -1829,7 +1829,7 @@ function renderSubmissionModal(s) {
     </div>
 
     <div class="form-group">
-      <label>이번 주 미션 · 레벨</label>
+      <label>다음 미션 · 레벨</label>
       <div class="level-selector" id="modal-level-btns">
         ${allowedLevels.map(lk => `
           <button type="button" class="level-btn ${lk === currentLevel ? 'active' : ''}"
@@ -1840,7 +1840,7 @@ function renderSubmissionModal(s) {
     </div>
 
     <div class="form-group">
-      <label>이번 주 미션 · 단계</label>
+      <label>다음 글쓰기 미션</label>
       <select id="modal-stage" onchange="selectedStage = parseInt(this.value)">
         ${stageOptions}
       </select>

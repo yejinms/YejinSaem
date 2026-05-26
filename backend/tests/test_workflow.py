@@ -191,7 +191,7 @@ def test_get_submission_includes_last_selected_mission():
     assert mission["stage_title"] == "소재를 구체적으로 고르기"
 
 
-def test_generate_adds_previous_mission_review_to_extra_instruction(monkeypatch):
+def test_generate_does_not_inject_previous_mission_into_extra_instruction(monkeypatch):
     parent_id = create_parent()
     image_path = "test_uploads/current.png"
     Path(image_path).write_bytes(b"image-bytes")
@@ -227,8 +227,8 @@ def test_generate_adds_previous_mission_review_to_extra_instruction(monkeypatch)
         json={"level": "표현력", "stage": 4, "extra_instruction": ""},
     )
     assert res.status_code == 200
-    assert "[지난 미션 검토]" in captured["extra_instruction"]
-    assert "소재를 구체적으로 고르기" in captured["extra_instruction"]
+    assert captured["extra_instruction"] == ""
+    assert "[지난 미션" not in captured["extra_instruction"]
     assert len(captured["previous_feedbacks"]) == 1
 
 

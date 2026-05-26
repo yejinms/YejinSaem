@@ -19,7 +19,7 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 from database import Parent, Submission, get_db
 from datetime_utils import to_utc_iso
 from levels_utils import apply_parent_levels, parent_levels_for_api, resolve_levels_input
-from mission_history import build_mission_review_instruction, get_last_selected_mission
+from mission_history import get_last_selected_mission
 from services.claude_service import generate_feedback, get_anthropic_key_status
 from services.outbound_privacy import sanitize_channel_feedback
 from services.kakao_service import send_feedback_message
@@ -333,19 +333,13 @@ def generate_submission_feedback(
     )
     previous_feedbacks = [rs.feedback_draft for rs in recent_submissions if rs.feedback_draft]
 
-    extra_instruction = (body.extra_instruction or "").strip()
-    last_mission = get_last_selected_mission(db, parent.id, submission_id)
-    if last_mission:
-        review_note = build_mission_review_instruction(last_mission)
-        extra_instruction = f"{review_note}\n\n{extra_instruction}".strip() if extra_instruction else review_note
-
     try:
         feedback_text = sanitize_channel_feedback(
             generate_feedback(
                 image_path=photo_paths,
                 level_key=body.level,
                 stage_num=body.stage,
-                extra_instruction=extra_instruction,
+                extra_instruction=body.extra_instruction or "",
                 previous_feedbacks=previous_feedbacks,
             ),
             parent,
