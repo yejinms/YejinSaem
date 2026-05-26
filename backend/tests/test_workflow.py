@@ -111,6 +111,18 @@ def test_parent_create_international_phone_number():
     assert created.json()["phone_number"] == "19992229333"
 
 
+def test_bulk_import_parents_from_paste():
+    text = "테스트일괄\t010-9999-0001\t0\t태그\t카톡\t표현력\n"
+    res = client.post("/admin/parents/bulk-import", json={"text": text})
+    assert res.status_code == 200
+    body = res.json()
+    assert body["created"] >= 1
+    assert body["imported"] == 1
+
+    listed = client.get("/admin/parents").json()
+    assert any(p["child_name"] == "테스트일괄" for p in listed)
+
+
 def test_parent_create_with_multiple_levels():
     created = client.post(
         "/admin/parents",

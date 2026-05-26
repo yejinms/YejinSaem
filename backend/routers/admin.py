@@ -20,6 +20,7 @@ from database import Parent, Submission, get_db
 from datetime_utils import to_utc_iso
 from levels_utils import apply_parent_levels, parent_levels_for_api, resolve_levels_input
 from mission_history import get_last_selected_mission
+from parent_import import import_parents_from_text
 from services.claude_service import generate_feedback, get_anthropic_key_status
 from services.outbound_privacy import sanitize_channel_feedback
 from services.kakao_service import send_feedback_message
@@ -81,6 +82,11 @@ class ParentUpdate(BaseModel):
     child_age: Optional[int] = None
     level: Optional[str] = None
     levels: Optional[list[str]] = None
+
+
+class ParentBulkImportRequest(BaseModel):
+    text: str
+    channel_filter: Optional[str] = None
 
 
 def serialize_parent(parent: Parent) -> dict:
@@ -505,6 +511,26 @@ def create_or_update_parent(body: ParentCreate, db: Session = Depends(get_db)):
     response["created"] = created
     response["kakao_linked"] = not is_pending_kakao_user_id(parent.kakao_user_id)
     return response
+
+
+@router.post("/parents/bulk-import")
+def bulk_import_parents(body: ParentBulkImportRequest, db: Session = Depends(get_db)):
+    """Import parents from tab-separated spreadsheet paste."""
+    text = (body.text or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="붙여넣을 데이터가 없습니다.")
+
+    result = import_parents_from_text(
+        db,
+        text,
+        channel_filter=(body.channel_filter or "").strip() or None,
+    )
+    if result["imported"] == 0 and result["errors"]:
+        raise HTTPException(
+            status_code=400,
+            detail={"message": "가져올 수 있는 행이 없습니다.", "errors": result["errors"]},
+        )
+    return result
 
 
 @router.get("/parents/{parent_id}")

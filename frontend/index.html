@@ -704,6 +704,19 @@
     }
     .last-mission-card .value.muted { font-weight: 500; color: var(--text-muted); }
 
+    .bulk-import-result {
+      font-size: 13px;
+      line-height: 1.5;
+      background: #fafafa;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-card);
+      padding: 12px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
     /* ===== Feedback Textarea ===== */
     .feedback-area {
       background: var(--white);
@@ -987,7 +1000,35 @@
 <div class="tab-panel" id="panel-parents">
   <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
     <div class="section-title" style="margin:0">등록된 학부모</div>
-    <button class="btn btn-primary btn-sm" onclick="openAddParent()">+ 추가</button>
+    <button class="btn btn-primary btn-sm" onclick="openAddParent()">+ 개별 추가</button>
+  </div>
+
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-body">
+      <div class="section-title" style="margin:0 0 8px; font-size:15px;">표에서 붙여넣기</div>
+      <p style="font-size:14px; color:var(--text-muted); margin:0 0 12px; line-height:1.5;">
+        스프레드시트에서 복사한 행을 그대로 붙여넣으세요.
+        <strong>이름 · 전화번호 · (메모) · (태그) · 채널 · 상품</strong> 순서(탭 구분)입니다.
+        상품: 표현력, 기초, 심화, 패키지
+      </p>
+      <textarea
+        id="parents-bulk-paste"
+        class="feedback-area"
+        rows="5"
+        placeholder="이지선&#9;010-8769-4830&#9;0&#9;5/26 구매자&#9;카톡&#9;패키지"
+        style="min-height:100px; margin-bottom:12px;"
+      ></textarea>
+      <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px;">
+        <label style="font-size:14px; display:flex; align-items:center; gap:6px;">
+          <input type="checkbox" id="parents-bulk-channel-only" />
+          카톡 채널만 가져오기
+        </label>
+      </div>
+      <button type="button" class="btn btn-primary btn-sm" id="parents-bulk-import-btn" onclick="importParentsBulk()">
+        붙여넣기 가져오기
+      </button>
+      <pre id="parents-bulk-result" class="bulk-import-result" style="display:none; margin-top:12px;"></pre>
+    </div>
   </div>
   <div class="parent-search-wrap">
     <input
@@ -1028,7 +1069,7 @@
   <div class="modal">
     <div class="modal-handle"></div>
     <div class="modal-header">
-      <span class="modal-title" id="parent-modal-title">학부모 추가</span>
+      <span class="modal-title" id="parent-modal-title">학부모 개별 추가</span>
       <button class="modal-close" onclick="closeModal('parent-modal')">✕</button>
     </div>
     <div class="modal-body">
@@ -2130,9 +2171,65 @@ async function loadParents() {
   }
 }
 
+async function importParentsBulk() {
+  const textarea = document.getElementById('parents-bulk-paste');
+  const resultEl = document.getElementById('parents-bulk-result');
+  const btn = document.getElementById('parents-bulk-import-btn');
+  const text = textarea?.value?.trim() || '';
+  if (!text) {
+    toast('붙여넣을 데이터를 입력해 주세요.', 3000);
+    return;
+  }
+
+  const channelOnly = document.getElementById('parents-bulk-channel-only')?.checked;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> 가져오는 중...';
+
+  try {
+    const result = await api('/admin/parents/bulk-import', {
+      method: 'POST',
+      body: JSON.stringify({
+        text,
+        channel_filter: channelOnly ? '카톡' : null,
+      }),
+    });
+
+    const lines = [
+      `신규 ${result.created}명 · 갱신 ${result.updated}명 · 실패 ${result.failed}건`,
+      `파싱 ${result.parsed_rows}행 → 등록 ${result.imported}명`,
+    ];
+    if (result.errors?.length) {
+      lines.push('', '오류:');
+      result.errors.slice(0, 10).forEach(err => {
+        lines.push(`  ${err.line ? `${err.line}행: ` : ''}${err.message}`);
+      });
+      if (result.errors.length > 10) {
+        lines.push(`  ... 외 ${result.errors.length - 10}건`);
+      }
+    }
+    if (resultEl) {
+      resultEl.style.display = '';
+      resultEl.textContent = lines.join('\n');
+    }
+    toast(`가져오기 완료: 신규 ${result.created} · 갱신 ${result.updated}`);
+    await loadParents();
+    const uploadSelect = document.getElementById('upload-parent-select');
+    if (uploadSelect) await loadUploadParents();
+  } catch (e) {
+    toast('❌ 가져오기 실패: ' + e.message, 4000);
+    if (resultEl) {
+      resultEl.style.display = '';
+      resultEl.textContent = e.message;
+    }
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '붙여넣기 가져오기';
+  }
+}
+
 function openAddParent() {
   currentParentId = null;
-  document.getElementById('parent-modal-title').textContent = '학부모 추가';
+  document.getElementById('parent-modal-title').textContent = '학부모 개별 추가';
   document.getElementById('parent-form').reset();
   setParentLevelsUI(['표현력']);
   document.getElementById('p-kakao-id').value = '';
