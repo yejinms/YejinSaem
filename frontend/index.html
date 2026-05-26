@@ -643,7 +643,31 @@
     .photo-gallery .photo-full {
       margin-bottom: 0;
       height: 180px;
+      cursor: zoom-in;
     }
+    .photo-gallery .photo-full:hover { opacity: 0.92; }
+
+    .photo-lightbox {
+      position: fixed;
+      inset: 0;
+      z-index: 300;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: rgba(0, 0, 0, 0.88);
+      cursor: zoom-out;
+    }
+    .photo-lightbox.open { display: flex; }
+    .photo-lightbox-img {
+      max-width: min(100%, 960px);
+      max-height: min(100%, 92vh);
+      object-fit: contain;
+      border-radius: var(--radius-card);
+      cursor: default;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+    }
+
     .no-photo {
       width: 100%;
       height: 160px;
@@ -978,6 +1002,11 @@
   <div id="parents-list">
     <div class="loading">불러오는 중...</div>
   </div>
+</div>
+
+<!-- ===== Photo lightbox (submission detail) ===== -->
+<div class="photo-lightbox" id="photo-lightbox" aria-hidden="true" onclick="closePhotoLightbox()">
+  <img id="photo-lightbox-img" class="photo-lightbox-img" alt="제출 사진" onclick="event.stopPropagation()" />
 </div>
 
 <!-- ===== Modal: Submission Detail ===== -->
@@ -1322,8 +1351,32 @@ function openModal(id) {
 }
 function closeModal(id) {
   document.getElementById(id).classList.remove('open');
+  closePhotoLightbox();
   document.body.style.overflow = '';
 }
+
+function openPhotoLightbox(src) {
+  const overlay = document.getElementById('photo-lightbox');
+  const img = document.getElementById('photo-lightbox-img');
+  if (!overlay || !img || !src) return;
+  img.src = src;
+  overlay.classList.add('open');
+  overlay.setAttribute('aria-hidden', 'false');
+  document.body.style.overflow = 'hidden';
+}
+
+function closePhotoLightbox() {
+  const overlay = document.getElementById('photo-lightbox');
+  const img = document.getElementById('photo-lightbox-img');
+  if (!overlay) return;
+  overlay.classList.remove('open');
+  overlay.setAttribute('aria-hidden', 'true');
+  if (img) img.removeAttribute('src');
+  if (!document.querySelector('.modal-overlay.open')) {
+    document.body.style.overflow = '';
+  }
+}
+
 // Close on overlay click
 document.querySelectorAll('.modal-overlay').forEach(overlay => {
   overlay.addEventListener('click', e => {
@@ -1755,9 +1808,11 @@ function renderSubmissionModal(s) {
   const photoPaths = getSubmissionPhotoPaths(s);
   const photoHtml = photoPaths.length > 0
     ? `<div class="photo-gallery">
-        ${photoPaths.map(path => `
-          <img class="photo-full" src="${uploadUrl(path)}" onerror="this.style.display='none'" />
-        `).join('')}
+        ${photoPaths.map(path => {
+          const url = uploadUrl(path);
+          return `<img class="photo-full photo-zoomable" src="${url}" alt="제출 사진" data-full-src="${escapeHtml(url)}"
+            onerror="this.style.display='none'" />`;
+        }).join('')}
       </div>`
     : `<div class="no-photo">📄</div>`;
 
@@ -1877,6 +1932,10 @@ function renderSubmissionModal(s) {
       </div>
     </div>
   `;
+
+  document.querySelectorAll('#submission-modal-body .photo-zoomable').forEach(img => {
+    img.addEventListener('click', () => openPhotoLightbox(img.dataset.fullSrc));
+  });
 }
 
 function selectModalLevel(btn) {
@@ -2222,6 +2281,12 @@ async function openParentHistory(parentId) {
 }
 
 // ===== Init =====
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && document.getElementById('photo-lightbox')?.classList.contains('open')) {
+    closePhotoLightbox();
+  }
+});
+
 document.addEventListener('DOMContentLoaded', () => {
   loadUploadParents();
   loadPending();
