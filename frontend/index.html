@@ -998,36 +998,11 @@
 
 <!-- Tab: Parents -->
 <div class="tab-panel" id="panel-parents">
-  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; gap:8px; flex-wrap:wrap;">
     <div class="section-title" style="margin:0">등록된 학부모</div>
-    <button class="btn btn-primary btn-sm" onclick="openAddParent()">+ 개별 추가</button>
-  </div>
-
-  <div class="card" style="margin-bottom:16px;">
-    <div class="card-body">
-      <div class="section-title" style="margin:0 0 8px; font-size:15px;">표에서 붙여넣기</div>
-      <p style="font-size:14px; color:var(--text-muted); margin:0 0 12px; line-height:1.5;">
-        스프레드시트에서 복사한 행을 그대로 붙여넣으세요.
-        <strong>이름 · 전화번호 · (메모) · (태그) · 채널 · 상품</strong> 순서(탭 구분)입니다.
-        상품: 표현력, 기초, 심화, 패키지
-      </p>
-      <textarea
-        id="parents-bulk-paste"
-        class="feedback-area"
-        rows="5"
-        placeholder="이지선&#9;010-8769-4830&#9;0&#9;5/26 구매자&#9;카톡&#9;패키지"
-        style="min-height:100px; margin-bottom:12px;"
-      ></textarea>
-      <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px;">
-        <label style="font-size:14px; display:flex; align-items:center; gap:6px;">
-          <input type="checkbox" id="parents-bulk-channel-only" />
-          카톡 채널만 가져오기
-        </label>
-      </div>
-      <button type="button" class="btn btn-primary btn-sm" id="parents-bulk-import-btn" onclick="importParentsBulk()">
-        붙여넣기 가져오기
-      </button>
-      <pre id="parents-bulk-result" class="bulk-import-result" style="display:none; margin-top:12px;"></pre>
+    <div style="display:flex; gap:8px; flex-shrink:0;">
+      <button class="btn btn-primary btn-sm" type="button" onclick="openAddParent()">+ 개별 추가</button>
+      <button class="btn btn-outline btn-sm" type="button" onclick="openParentsBulkImport()">+ 붙여넣기</button>
     </div>
   </div>
   <div class="parent-search-wrap">
@@ -1110,6 +1085,41 @@
         </div>
         <button type="submit" class="btn btn-primary" id="parent-save-btn">저장</button>
       </form>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Modal: Bulk parent import ===== -->
+<div class="modal-overlay" id="parent-bulk-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <span class="modal-title">표에서 붙여넣기</span>
+      <button class="modal-close" type="button" onclick="closeModal('parent-bulk-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:14px; color:var(--text-muted); margin:0 0 12px; line-height:1.5;">
+        스프레드시트에서 복사한 행을 그대로 붙여넣으세요.
+        <strong>이름 · 전화번호 · (메모) · (태그) · 채널 · 상품</strong> 순서(탭 구분)입니다.
+        상품: 표현력, 기초, 심화, 패키지
+      </p>
+      <textarea
+        id="parents-bulk-paste"
+        class="feedback-area"
+        rows="6"
+        placeholder="이지선&#9;010-8769-4830&#9;0&#9;5/26 구매자&#9;카톡&#9;패키지"
+        style="min-height:120px; margin-bottom:12px;"
+      ></textarea>
+      <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px;">
+        <label style="font-size:14px; display:flex; align-items:center; gap:6px;">
+          <input type="checkbox" id="parents-bulk-channel-only" />
+          카톡 채널만 가져오기
+        </label>
+      </div>
+      <button type="button" class="btn btn-primary" id="parents-bulk-import-btn" onclick="importParentsBulk()">
+        붙여넣기 가져오기
+      </button>
+      <pre id="parents-bulk-result" class="bulk-import-result" style="display:none; margin-top:12px;"></pre>
     </div>
   </div>
 </div>
@@ -2212,6 +2222,7 @@ async function importParentsBulk() {
       resultEl.textContent = lines.join('\n');
     }
     toast(`가져오기 완료: 신규 ${result.created} · 갱신 ${result.updated}`);
+    closeModal('parent-bulk-modal');
     await loadParents();
     const uploadSelect = document.getElementById('upload-parent-select');
     if (uploadSelect) await loadUploadParents();
@@ -2234,6 +2245,15 @@ function openAddParent() {
   setParentLevelsUI(['표현력']);
   document.getElementById('p-kakao-id').value = '';
   openModal('parent-modal');
+}
+
+function openParentsBulkImport() {
+  const resultEl = document.getElementById('parents-bulk-result');
+  if (resultEl) {
+    resultEl.style.display = 'none';
+    resultEl.textContent = '';
+  }
+  openModal('parent-bulk-modal');
 }
 
 function openEditParentFromSubmission(parentId) {
