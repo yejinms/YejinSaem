@@ -674,6 +674,11 @@
     .child-info-row:last-child { margin-bottom: 0; }
     .child-info-row .label { color: var(--text-muted); }
     .child-info-row .value { font-weight: 600; }
+    .last-mission-card {
+      border: 1.5px solid var(--border);
+      background: var(--white);
+    }
+    .last-mission-card .value.muted { font-weight: 500; color: var(--text-muted); }
 
     /* ===== Feedback Textarea ===== */
     .feedback-area {
@@ -1742,6 +1747,7 @@ function renderSubmissionModal(s) {
   let currentLevel = s.level || (parent && parent.level) || allowedLevels[0] || '표현력';
   if (!allowedLevels.includes(currentLevel)) currentLevel = allowedLevels[0];
   const currentStage = s.stage || 1;
+  const lastMission = s.last_selected_mission || null;
 
   selectedLevel = currentLevel;
   selectedStage = currentStage;
@@ -1803,8 +1809,27 @@ function renderSubmissionModal(s) {
 
     ${isSent ? '<div class="sent-banner">이미 전송된 피드백입니다</div>' : ''}
 
+    <div class="child-info-card last-mission-card">
+      <div class="child-info-row">
+        <span class="label">지난 번 선택 미션</span>
+        <span class="value ${lastMission ? '' : 'muted'}">${
+          lastMission
+            ? `${escapeHtml(lastMission.level)} ${lastMission.stage}단계 · ${escapeHtml(lastMission.stage_title || '')}`
+            : '선택 없음'
+        }</span>
+      </div>
+      ${
+        lastMission && lastMission.stage_mission
+          ? `<div class="child-info-row">
+        <span class="label">기대 표현</span>
+        <span class="value">${escapeHtml(lastMission.stage_mission)}</span>
+      </div>`
+          : ''
+      }
+    </div>
+
     <div class="form-group">
-      <label>레벨 선택</label>
+      <label>이번 주 미션 · 레벨</label>
       <div class="level-selector" id="modal-level-btns">
         ${allowedLevels.map(lk => `
           <button type="button" class="level-btn ${lk === currentLevel ? 'active' : ''}"
@@ -1815,7 +1840,7 @@ function renderSubmissionModal(s) {
     </div>
 
     <div class="form-group">
-      <label>단계 선택</label>
+      <label>이번 주 미션 · 단계</label>
       <select id="modal-stage" onchange="selectedStage = parseInt(this.value)">
         ${stageOptions}
       </select>

@@ -166,7 +166,32 @@ def test_delete_submission():
     assert not Path(image_path).exists()
 
 
-def test_generate_passes_previous_feedback_contexts(monkeypatch):
+def test_get_submission_includes_last_selected_mission():
+    parent_id = create_parent()
+    db = SessionLocal()
+    past = Submission(
+        parent_id=parent_id,
+        status="generated",
+        level="표현력",
+        stage=3,
+        feedback_draft="지난 피드백",
+    )
+    current = Submission(parent_id=parent_id, status="pending")
+    db.add_all([past, current])
+    db.commit()
+    db.refresh(current)
+    submission_id = current.id
+    db.close()
+
+    res = client.get(f"/admin/submissions/{submission_id}")
+    assert res.status_code == 200
+    mission = res.json()["last_selected_mission"]
+    assert mission["level"] == "표현력"
+    assert mission["stage"] == 3
+    assert mission["stage_title"] == "소재를 구체적으로 고르기"
+
+
+def test_generate_adds_previous_mission_review_to_extra_instruction(monkeypatch):
     parent_id = create_parent()
     image_path = "test_uploads/current.png"
     Path(image_path).write_bytes(b"image-bytes")
@@ -177,7 +202,7 @@ def test_generate_passes_previous_feedback_contexts(monkeypatch):
         status="sent",
         level="표현력",
         stage=3,
-        feedback_draft="지난 피드백: 소재를 구체적으로 잘 골랐어요.",
+        feedback_draft="지난 피드백",
     )
     current = Submission(
         parent_id=parent_id,
@@ -202,12 +227,9 @@ def test_generate_passes_previous_feedback_contexts(monkeypatch):
         json={"level": "표현력", "stage": 4, "extra_instruction": ""},
     )
     assert res.status_code == 200
-    contexts = captured["previous_contexts"]
-    assert len(contexts) == 1
-    assert contexts[0]["status"] == "sent"
-    assert contexts[0]["stage"] == 3
-    assert contexts[0]["stage_title"] == "소재를 구체적으로 고르기"
-    assert "지난 피드백" in contexts[0]["feedback_excerpt"]
+    assert "[지난 미션 검토]" in captured["extra_instruction"]
+    assert "소재를 구체적으로 고르기" in captured["extra_instruction"]
+    assert len(captured["previous_feedbacks"]) == 1
 
 
 def test_admin_auth_when_password_is_configured(monkeypatch):

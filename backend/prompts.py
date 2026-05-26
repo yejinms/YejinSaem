@@ -216,7 +216,6 @@ def get_system_prompt() -> str:
 - "틀렸어요", "부족해요", "아쉽지만" 같은 직접 지적은 하지 않습니다. 부족한 부분은 다음 미션 제안으로만 이어갑니다.
 
 ## 내용 작성 원칙
-- 지난 발송 이력이 제공되면, 지난번에 안내한 미션을 이번 글에서 잘 수행했는지 먼저 확인하고 달성했을 때 구체적으로 칭찬합니다.
 - 사진 속 손글씨를 읽고, 이번 주 미션(단계)과 실제로 연결된 부분만 칭찬합니다.
 - 아이 문장을 길게 통째로 인용하지 않습니다. 핵심 구절만 짧게 따옴표로 넣거나, 요약해서 말합니다.
 - 칭찬은 구체적으로(어떤 표현·구조·생각이 좋았는지). 막연한 "잘했어요"만 반복하지 않습니다.
@@ -255,7 +254,6 @@ def get_feedback_user_prompt(
     stage_num: int,
     extra_instruction: str = "",
     previous_feedbacks: list = None,
-    previous_contexts: list = None,
 ) -> str:
     level = LEVELS.get(level_key)
     if not level:
@@ -286,42 +284,7 @@ def get_feedback_user_prompt(
     if extra_instruction:
         prompt_parts.append(f"\n선생님 추가 지시사항: {extra_instruction}")
 
-    contexts = previous_contexts or []
-    if contexts:
-        prompt_parts.extend(
-            [
-                "",
-                "## 지난 발송·피드백 이력 (반드시 참고)",
-                "- 아래는 이전에 작성·발송한 피드백과 당시 미션입니다.",
-                "- 오늘 사진 속 글을 읽고, 지난번에 안내했던 미션을 우리 친구가 이번에 잘 수행했는지 확인하세요.",
-                "- 지난 미션을 잘 했다면 이번 피드백 앞부분에서 구체적으로 칭찬해 주세요 (어떤 표현·구조로 달성했는지).",
-                "- 표현·문장 구조·칭찬 포인트는 지난 피드백과 겹치지 않게 새롭게 쓰세요.",
-                "- 지난 미션이 아직 잘 보이지 않으면 억지로 칭찬하지 마세요.",
-            ]
-        )
-        for i, ctx in enumerate(contexts, 1):
-            status_label = {
-                "sent": "발송 완료",
-                "approved": "발송 대기(승인)",
-                "generated": "생성됨",
-            }.get(ctx.get("status"), ctx.get("status") or "기록")
-            when = ctx.get("created_at") or ""
-            level = ctx.get("level") or "-"
-            stage = ctx.get("stage")
-            stage_part = f"{stage}단계" if stage else "단계 미기록"
-            title = ctx.get("stage_title") or ""
-            mission = ctx.get("stage_mission") or ""
-            excerpt = (ctx.get("feedback_excerpt") or "")[:400]
-            if len(ctx.get("feedback_excerpt") or "") > 400:
-                excerpt += "…"
-            prompt_parts.append(f"\n  [{i}] {when} · {status_label} · {level} {stage_part}")
-            if title:
-                prompt_parts.append(f"      당시 미션: {title}")
-            if mission:
-                prompt_parts.append(f"      기대 표현: {mission}")
-            if excerpt:
-                prompt_parts.append(f"      보낸 피드백 요약: {excerpt}")
-    elif previous_feedbacks:
+    if previous_feedbacks:
         prompt_parts.append(
             "\n이전에 보낸 피드백 (표현·문장 구조·칭찬 포인트가 겹치지 않게 새로 쓰세요):"
         )
