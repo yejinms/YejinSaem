@@ -2205,8 +2205,8 @@ async function importParentsBulk() {
     });
 
     const lines = [
-      `신규 ${result.created}명 · 갱신 ${result.updated}명 · 실패 ${result.failed}건`,
-      `파싱 ${result.parsed_rows}행 → 등록 ${result.imported}명`,
+      `신규 ${result.created}명 · 중복 제외 ${result.skipped ?? 0}명 · 실패 ${result.failed}건`,
+      `파싱 ${result.parsed_rows}행 → 시도 ${result.attempted ?? result.imported}명`,
     ];
     if (result.errors?.length) {
       lines.push('', '오류:');
@@ -2221,7 +2221,7 @@ async function importParentsBulk() {
       resultEl.style.display = '';
       resultEl.textContent = lines.join('\n');
     }
-    toast(`가져오기 완료: 신규 ${result.created} · 갱신 ${result.updated}`);
+    toast(`가져오기 완료: 신규 ${result.created} · 중복 제외 ${result.skipped ?? 0}`);
     closeModal('parent-bulk-modal');
     await loadParents();
     const uploadSelect = document.getElementById('upload-parent-select');

@@ -175,27 +175,39 @@ def import_parents_from_text(
     if channel_filter:
         merged = filter_by_channel(merged, channel_filter)
 
-    created = updated = failed = 0
+    created = skipped = failed = 0
     results: list[dict] = []
 
     for parent in merged:
-        try:
-            _, is_created = upsert_parent(
-                db,
-                phone_number=parent["phone_number"],
-                child_name=parent["child_name"],
-                levels=parent["levels"],
-            )
-            if is_created:
-                created += 1
-            else:
-                updated += 1
+        existing = (
+            db.query(Parent).filter(Parent.phone_number == parent["phone_number"]).first()
+        )
+        if existing:
+            skipped += 1
             results.append(
                 {
                     "phone_number": parent["phone_number"],
                     "child_name": parent["child_name"],
                     "levels": parent["levels"],
-                    "created": is_created,
+                    "skipped": True,
+                }
+            )
+            continue
+
+        try:
+            upsert_parent(
+                db,
+                phone_number=parent["phone_number"],
+                child_name=parent["child_name"],
+                levels=parent["levels"],
+            )
+            created += 1
+            results.append(
+                {
+                    "phone_number": parent["phone_number"],
+                    "child_name": parent["child_name"],
+                    "levels": parent["levels"],
+                    "created": True,
                 }
             )
         except Exception as exc:
@@ -210,10 +222,12 @@ def import_parents_from_text(
 
     return {
         "created": created,
-        "updated": updated,
+        "skipped": skipped,
+        "updated": 0,
         "failed": failed,
         "parsed_rows": len(rows),
-        "imported": len(merged),
+        "imported": created,
+        "attempted": len(merged),
         "errors": parse_errors,
         "results": results,
     }

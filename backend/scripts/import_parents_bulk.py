@@ -44,8 +44,8 @@ def main() -> int:
         db.close()
 
     print(
-        f"created={result['created']} updated={result['updated']} "
-        f"failed={result['failed']} imported={result['imported']}"
+        f"created={result['created']} skipped={result['skipped']} "
+        f"failed={result['failed']} attempted={result['attempted']}"
     )
     if result["errors"]:
         for err in result["errors"]:

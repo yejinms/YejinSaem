@@ -116,11 +116,18 @@ def test_bulk_import_parents_from_paste():
     res = client.post("/admin/parents/bulk-import", json={"text": text})
     assert res.status_code == 200
     body = res.json()
-    assert body["created"] >= 1
+    assert body["created"] == 1
+    assert body["skipped"] == 0
     assert body["imported"] == 1
 
     listed = client.get("/admin/parents").json()
     assert any(p["child_name"] == "테스트일괄" for p in listed)
+
+    res2 = client.post("/admin/parents/bulk-import", json={"text": text})
+    assert res2.status_code == 200
+    body2 = res2.json()
+    assert body2["created"] == 0
+    assert body2["skipped"] == 1
 
 
 def test_parent_create_with_multiple_levels():

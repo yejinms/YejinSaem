@@ -525,7 +525,7 @@ def bulk_import_parents(body: ParentBulkImportRequest, db: Session = Depends(get
         text,
         channel_filter=(body.channel_filter or "").strip() or None,
     )
-    if result["imported"] == 0 and result["errors"]:
+    if result["created"] == 0 and result["skipped"] == 0 and result["errors"]:
         raise HTTPException(
             status_code=400,
             detail={"message": "가져올 수 있는 행이 없습니다.", "errors": result["errors"]},
