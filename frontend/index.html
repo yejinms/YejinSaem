@@ -1026,17 +1026,19 @@
         용량 정보 불러오는 중...
       </p>
       <p style="font-size:13px; color:var(--text-muted); margin:0 0 12px; line-height:1.5;">
-        <strong>용량 확보 순서:</strong> ① <strong>사진 ZIP 백업</strong> → Mac <code>문서/YejinSaem-backup/photos/</code>에 저장
-        → ② <strong>용량 정리</strong>. (DB는 작아서 선택)
+        <strong>사진만 백업:</strong> 아래 <strong>사진 ZIP 백업</strong>만 누르면 됩니다 (DB는 받지 않음).
+        Mac <code>문서/YejinSaem-backup/photos/</code>에 ZIP 저장 후 <strong>용량 정리</strong>하면 Volume이 줄어듭니다.
       </p>
-      <div style="display:flex; flex-wrap:wrap; gap:8px;">
+      <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
         <button type="button" class="btn btn-outline btn-sm" onclick="loadStorageStatus()">새로고침</button>
         <button type="button" class="btn btn-primary btn-sm" id="storage-photos-backup-btn" onclick="downloadPhotosBackup()">
           사진 ZIP 백업
         </button>
-        <button type="button" class="btn btn-outline btn-sm" onclick="downloadDbBackup()">DB 백업</button>
         <button type="button" class="btn btn-outline btn-sm" id="storage-cleanup-btn" onclick="cleanupStorage()">
           용량 정리
+        </button>
+        <button type="button" class="btn btn-outline btn-sm" style="font-size:12px; color:var(--text-muted);" onclick="downloadDbBackup()">
+          DB만 (선택)
         </button>
       </div>
       <pre id="storage-cleanup-result" class="bulk-import-result" style="display:none; margin-top:12px;"></pre>
