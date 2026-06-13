@@ -83,4 +83,5 @@ https://<Railway-도메인>/kakao/webhook
 | 502 / 헬스 실패 | Deploy 로그에서 `uvicorn` 기동 여부 |
 | 대시보드 404 | Root Directory가 `backend` 로만 잡혀 있지 않은지 |
 | 제출·사진 사라짐 | Volume + `DATABASE_URL` / `UPLOAD_DIR` |
+| Volume 99% 용량 | [railway-volume-backup.md](./railway-volume-backup.md) — 학부모 탭 **용량 정리** |
 | 카카오 401 | `KAKAO_CHANNEL_SECRET` 이 Railway에 남아 있지 않은지 |

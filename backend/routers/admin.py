@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -21,11 +22,16 @@ from datetime_utils import to_utc_iso
 from levels_utils import apply_parent_levels, parent_levels_for_api, resolve_levels_input
 from mission_history import get_last_selected_mission
 from parent_import import import_parents_from_text
+from storage_maintenance import cleanup_storage, database_file_path, get_storage_status
 from services.claude_service import generate_feedback, get_anthropic_key_status
 from services.outbound_privacy import sanitize_channel_feedback
 from services.kakao_service import send_feedback_message
 from services.parent_match import is_pending_kakao_user_id, pending_kakao_user_id
-from upload_paths import resolve_upload_file_path
+from upload_paths import (
+    delete_submission_photo_files,
+    get_submission_photo_paths,
+    resolve_upload_file_path,
+)
 from validation import (
     normalize_phone_number,
     read_validated_upload,
@@ -89,6 +95,12 @@ class ParentBulkImportRequest(BaseModel):
     channel_filter: Optional[str] = None
 
 
+class StorageCleanupRequest(BaseModel):
+    remove_sent_photos: bool = True
+    remove_orphans: bool = True
+    vacuum_database: bool = True
+
+
 def serialize_parent(parent: Parent) -> dict:
     levels = parent_levels_for_api(parent)
     return {
@@ -104,21 +116,9 @@ def serialize_parent(parent: Parent) -> dict:
 
 
 def get_submission_photo_paths(submission: Submission) -> list[str]:
-    if not submission.photo_path:
-        return []
+    from upload_paths import get_submission_photo_paths as _get_paths
 
-    raw_path = submission.photo_path.strip()
-    if not raw_path.startswith("["):
-        return [submission.photo_path]
-
-    try:
-        paths = json.loads(raw_path)
-    except json.JSONDecodeError:
-        return [submission.photo_path]
-
-    if not isinstance(paths, list):
-        return []
-    return [path for path in paths if isinstance(path, str) and path]
+    return _get_paths(submission)
 
 
 def serialize_photo_paths(paths: list[str]) -> str | None:
@@ -533,6 +533,42 @@ def bulk_import_parents(body: ParentBulkImportRequest, db: Session = Depends(get
     return result
 
 
+@router.get("/storage/status")
+def storage_status(db: Session = Depends(get_db)):
+    """Volume usage breakdown for Railway /data."""
+    return get_storage_status(db)
+
+
+@router.post("/storage/cleanup")
+def storage_cleanup(body: StorageCleanupRequest, db: Session = Depends(get_db)):
+    """
+    Free disk space safely:
+    - Remove worksheet photos for already-sent submissions (feedback text stays in DB)
+    - Remove orphan files in uploads/
+    - VACUUM SQLite database
+    """
+    return cleanup_storage(
+        db,
+        remove_sent_photos=body.remove_sent_photos,
+        remove_orphans=body.remove_orphans,
+        vacuum_database=body.vacuum_database,
+    )
+
+
+@router.get("/storage/backup/database")
+def download_database_backup():
+    """Download SQLite DB for offline backup."""
+    db_path = database_file_path()
+    if not db_path or not db_path.is_file():
+        raise HTTPException(status_code=404, detail="SQLite database file not found.")
+
+    return FileResponse(
+        path=str(db_path),
+        filename="yejinsaem-backup.db",
+        media_type="application/octet-stream",
+    )
+
+
 @router.get("/parents/{parent_id}")
 def get_parent(parent_id: int, db: Session = Depends(get_db)):
     """Get a single parent's details."""
@@ -576,14 +612,7 @@ def update_parent(parent_id: int, body: ParentUpdate, db: Session = Depends(get_
 
 
 def delete_submission_files(submission: Submission) -> None:
-    for stored_path in get_submission_photo_paths(submission):
-        try:
-            file_path = resolve_upload_file_path(stored_path)
-            file_path.unlink()
-        except FileNotFoundError:
-            logger.warning("Upload file already missing: %s", stored_path)
-        except OSError as e:
-            logger.warning("Failed to delete upload %s: %s", stored_path, e)
+    delete_submission_photo_files(submission)
 
 
 @router.delete("/parents/{parent_id}", status_code=status.HTTP_204_NO_CONTENT)

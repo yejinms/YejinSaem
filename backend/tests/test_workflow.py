@@ -185,6 +185,52 @@ def test_delete_submission():
     assert not Path(image_path).exists()
 
 
+def test_storage_cleanup_removes_sent_photos():
+    parent_id = create_parent()
+    image_path = "test_uploads/sent-cleanup.jpg"
+    Path(image_path).write_bytes(b"x" * 5000)
+
+    db = SessionLocal()
+    submission = Submission(
+        parent_id=parent_id,
+        photo_path=image_path,
+        status="sent",
+        feedback_draft="보낸 피드백",
+    )
+    db.add(submission)
+    db.commit()
+    submission_id = submission.id
+    db.close()
+
+    res = client.post(
+        "/admin/storage/cleanup",
+        json={
+            "remove_sent_photos": True,
+            "remove_orphans": True,
+            "vacuum_database": False,
+        },
+    )
+    assert res.status_code == 200
+    body = res.json()
+    assert body["removed_sent_submission_photos"] == 1
+    assert body["freed_bytes"] >= 5000
+    assert not Path(image_path).exists()
+
+    db = SessionLocal()
+    saved = db.query(Submission).filter(Submission.id == submission_id).one()
+    db.close()
+    assert saved.photo_path is None
+    assert saved.feedback_draft == "보낸 피드백"
+
+
+def test_storage_status_endpoint():
+    res = client.get("/admin/storage/status")
+    assert res.status_code == 200
+    body = res.json()
+    assert "upload_human" in body
+    assert "database_human" in body
+
+
 def test_get_submission_includes_last_selected_mission():
     parent_id = create_parent()
     db = SessionLocal()

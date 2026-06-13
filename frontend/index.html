@@ -1018,6 +1018,27 @@
   <div id="parents-list">
     <div class="loading">불러오는 중...</div>
   </div>
+
+  <div class="card storage-card" style="margin-top:20px;">
+    <div class="card-body">
+      <div class="section-title" style="margin:0 0 8px; font-size:15px;">저장소 (Railway Volume)</div>
+      <p id="storage-status-text" style="font-size:14px; color:var(--text-muted); margin:0 0 12px; line-height:1.5;">
+        용량 정보 불러오는 중...
+      </p>
+      <p style="font-size:13px; color:var(--text-muted); margin:0 0 12px; line-height:1.5;">
+        <strong>백업 권장:</strong> Mac <code>문서/YejinSaem-backup/</code> 등에 DB 파일 저장.
+        피드백·학부모 정보는 DB에, 사진은 발송 완료 후 삭제해도 됩니다.
+      </p>
+      <div style="display:flex; flex-wrap:wrap; gap:8px;">
+        <button type="button" class="btn btn-outline btn-sm" onclick="loadStorageStatus()">새로고침</button>
+        <button type="button" class="btn btn-outline btn-sm" onclick="downloadDbBackup()">DB 백업 다운로드</button>
+        <button type="button" class="btn btn-primary btn-sm" id="storage-cleanup-btn" onclick="cleanupStorage()">
+          용량 정리
+        </button>
+      </div>
+      <pre id="storage-cleanup-result" class="bulk-import-result" style="display:none; margin-top:12px;"></pre>
+    </div>
+  </div>
 </div>
 
 <!-- ===== Photo lightbox (submission detail) ===== -->
@@ -1392,7 +1413,10 @@ function switchTab(tab) {
 
   if (tab === 'pending') loadPending();
   else if (tab === 'history') loadHistory();
-  else if (tab === 'parents') loadParents();
+  else if (tab === 'parents') {
+    loadParents();
+    loadStorageStatus();
+  }
 }
 
 // ===== Modal =====
@@ -2178,6 +2202,98 @@ async function loadParents() {
   } catch (e) {
     cachedParents = [];
     container.innerHTML = `<div class="empty"><div class="icon">⚠️</div><p>${escapeHtml(e.message)}</p></div>`;
+  }
+}
+
+async function loadStorageStatus() {
+  const el = document.getElementById('storage-status-text');
+  if (!el) return;
+  try {
+    const s = await api('/admin/storage/status');
+    el.innerHTML = [
+      `전체 <strong>${escapeHtml(s.total_human)}</strong> (사진 ${escapeHtml(s.upload_human)} · DB ${escapeHtml(s.database_human)})`,
+      `사진 ${s.upload_file_count}개 · 발송 완료 사진 ${s.sent_submissions_with_photos}건 · 고아 파일 ${s.orphan_file_count}개 (${escapeHtml(s.orphan_human)})`,
+      `대기 중 사진 ${s.active_submissions_with_photos}건`,
+    ].join('<br>');
+  } catch (e) {
+    el.textContent = '용량 정보를 불러오지 못했습니다: ' + e.message;
+  }
+}
+
+async function downloadDbBackup() {
+  try {
+    const token = sessionStorage.getItem(ADMIN_TOKEN_KEY);
+    const headers = {};
+    if (token) headers.Authorization = `Bearer ${encodeURIComponent(token)}`;
+    const res = await fetch(API_BASE + '/admin/storage/backup/database', { headers });
+    if (res.status === 401) {
+      sessionStorage.removeItem(ADMIN_TOKEN_KEY);
+      const password = prompt('관리자 비밀번호를 입력해주세요.');
+      if (password) {
+        sessionStorage.setItem(ADMIN_TOKEN_KEY, password);
+        return downloadDbBackup();
+      }
+      return;
+    }
+    if (!res.ok) throw new Error('다운로드 실패');
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `yejinsaem-backup-${new Date().toISOString().slice(0, 10)}.db`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    toast('DB 백업 파일을 저장했습니다');
+  } catch (e) {
+    toast('❌ 백업 실패: ' + e.message, 4000);
+  }
+}
+
+async function cleanupStorage() {
+  if (!confirm(
+    '발송 완료된 제출의 사진·고아 파일을 삭제하고 DB를 정리합니다.\n'
+    + '피드백 텍스트와 학부모 정보는 유지됩니다. 계속할까요?'
+  )) return;
+
+  const btn = document.getElementById('storage-cleanup-btn');
+  const resultEl = document.getElementById('storage-cleanup-result');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> 정리 중...';
+
+  try {
+    const result = await api('/admin/storage/cleanup', {
+      method: 'POST',
+      body: JSON.stringify({
+        remove_sent_photos: true,
+        remove_orphans: true,
+        vacuum_database: true,
+      }),
+    });
+    const lines = [
+      `확보 ${result.freed_human}`,
+      `발송 완료 사진 ${result.removed_sent_submission_photos}건 삭제`,
+      `고아 파일 ${result.removed_orphan_files}개 삭제`,
+      `DB VACUUM: ${result.vacuumed_database ? '완료' : '건너뜀'}`,
+      '',
+      `정리 후 전체 ${result.storage.total_human} (사진 ${result.storage.upload_human})`,
+    ];
+    if (resultEl) {
+      resultEl.style.display = '';
+      resultEl.textContent = lines.join('\n');
+    }
+    toast(`용량 정리 완료: ${result.freed_human} 확보`);
+    await loadStorageStatus();
+  } catch (e) {
+    toast('❌ 정리 실패: ' + e.message, 4000);
+    if (resultEl) {
+      resultEl.style.display = '';
+      resultEl.textContent = e.message;
+    }
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '용량 정리';
   }
 }
 
