@@ -1026,13 +1026,16 @@
         용량 정보 불러오는 중...
       </p>
       <p style="font-size:13px; color:var(--text-muted); margin:0 0 12px; line-height:1.5;">
-        <strong>백업 권장:</strong> Mac <code>문서/YejinSaem-backup/</code> 등에 DB 파일 저장.
-        피드백·학부모 정보는 DB에, 사진은 발송 완료 후 삭제해도 됩니다.
+        <strong>용량 확보 순서:</strong> ① <strong>사진 ZIP 백업</strong> → Mac <code>문서/YejinSaem-backup/photos/</code>에 저장
+        → ② <strong>용량 정리</strong>. (DB는 작아서 선택)
       </p>
       <div style="display:flex; flex-wrap:wrap; gap:8px;">
         <button type="button" class="btn btn-outline btn-sm" onclick="loadStorageStatus()">새로고침</button>
-        <button type="button" class="btn btn-outline btn-sm" onclick="downloadDbBackup()">DB 백업 다운로드</button>
-        <button type="button" class="btn btn-primary btn-sm" id="storage-cleanup-btn" onclick="cleanupStorage()">
+        <button type="button" class="btn btn-primary btn-sm" id="storage-photos-backup-btn" onclick="downloadPhotosBackup()">
+          사진 ZIP 백업
+        </button>
+        <button type="button" class="btn btn-outline btn-sm" onclick="downloadDbBackup()">DB 백업</button>
+        <button type="button" class="btn btn-outline btn-sm" id="storage-cleanup-btn" onclick="cleanupStorage()">
           용량 정리
         </button>
       </div>
@@ -2220,6 +2223,53 @@ async function loadStorageStatus() {
   }
 }
 
+async function downloadPhotosBackup() {
+  const btn = document.getElementById('storage-photos-backup-btn');
+  const original = btn?.innerHTML || '사진 ZIP 백업';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> ZIP 만드는 중...';
+  }
+
+  try {
+    const token = sessionStorage.getItem(ADMIN_TOKEN_KEY);
+    const headers = {};
+    if (token) headers.Authorization = `Bearer ${encodeURIComponent(token)}`;
+    const res = await fetch(API_BASE + '/admin/storage/backup/photos', { headers });
+    if (res.status === 401) {
+      sessionStorage.removeItem(ADMIN_TOKEN_KEY);
+      const password = prompt('관리자 비밀번호를 입력해주세요.');
+      if (password) {
+        sessionStorage.setItem(ADMIN_TOKEN_KEY, password);
+        return downloadPhotosBackup();
+      }
+      return;
+    }
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error(formatApiErrorDetail(err.detail) || '다운로드 실패');
+    }
+    const blob = await res.blob();
+    const count = res.headers.get('X-Photo-Count');
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `yejinsaem-photos-${new Date().toISOString().slice(0, 10)}.zip`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    toast(`사진 ZIP 저장 완료${count ? ` (${count}장)` : ''}. 용량 정리 전에 Mac에 보관하세요.`);
+  } catch (e) {
+    toast('❌ 사진 백업 실패: ' + e.message, 5000);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = original;
+    }
+  }
+}
+
 async function downloadDbBackup() {
   try {
     const token = sessionStorage.getItem(ADMIN_TOKEN_KEY);
@@ -2254,6 +2304,7 @@ async function downloadDbBackup() {
 async function cleanupStorage() {
   if (!confirm(
     '발송 완료된 제출의 사진·고아 파일을 삭제하고 DB를 정리합니다.\n'
+    + '사진 ZIP 백업을 먼저 받았는지 확인하세요.\n'
     + '피드백 텍스트와 학부모 정보는 유지됩니다. 계속할까요?'
   )) return;
 

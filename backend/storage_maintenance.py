@@ -4,12 +4,17 @@ storage_maintenance.py - Railway volume usage stats and safe cleanup.
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import sqlite3
+import tempfile
+import zipfile
+from datetime import datetime, timezone
 from pathlib import Path
 
 from database import Submission
+from datetime_utils import to_utc_iso
 from upload_paths import get_submission_photo_paths, resolve_upload_file_path, upload_dir
 
 logger = logging.getLogger(__name__)
@@ -108,10 +113,109 @@ def get_storage_status(db) -> dict:
         "sent_submissions_with_photos": sent_with_photos,
         "active_submissions_with_photos": pending_with_photos,
         "backup_hint": (
-            "필수 백업: yejinsaem.db (학부모·피드백). "
-            "사진은 발송 완료 후 삭제해도 피드백 텍스트는 DB에 남습니다."
+            "용량 확보 순서: ① 사진 ZIP 백업 다운로드 → ② 용량 정리. "
+            "DB 백업은 학부모·피드백용(용량은 작음)."
         ),
     }
+
+
+def create_photos_backup_zip(db) -> tuple[Path, int]:
+    """Pack all upload photos into a zip on /tmp (not on the volume)."""
+    uploads_path = upload_dir()
+    if not uploads_path.exists():
+        raise ValueError("업로드 폴더가 없습니다.")
+
+    entries: list[dict] = []
+    seen_files: set[str] = set()
+
+    submissions = (
+        db.query(Submission)
+        .filter(Submission.photo_path.isnot(None))
+        .order_by(Submission.id.asc())
+        .all()
+    )
+    for submission in submissions:
+        parent_name = submission.parent.child_name if submission.parent else "미등록"
+        safe_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in parent_name)[:40]
+        for index, stored_path in enumerate(get_submission_photo_paths(submission), start=1):
+            try:
+                file_path = resolve_upload_file_path(stored_path)
+            except FileNotFoundError:
+                continue
+            resolved = str(file_path.resolve())
+            if resolved in seen_files:
+                continue
+            seen_files.add(resolved)
+            arcname = (
+                f"photos/submission-{submission.id}_{safe_name}/"
+                f"photo-{index}{file_path.suffix.lower() or '.jpg'}"
+            )
+            entries.append(
+                {
+                    "arcname": arcname,
+                    "path": file_path,
+                    "submission_id": submission.id,
+                    "child_name": parent_name,
+                    "status": submission.status,
+                    "created_at": to_utc_iso(submission.created_at),
+                    "bytes": file_path.stat().st_size,
+                }
+            )
+
+    for file_path in uploads_path.rglob("*"):
+        if not file_path.is_file():
+            continue
+        resolved = str(file_path.resolve())
+        if resolved in seen_files:
+            continue
+        seen_files.add(resolved)
+        entries.append(
+            {
+                "arcname": f"photos/orphan/{file_path.name}",
+                "path": file_path,
+                "submission_id": None,
+                "child_name": None,
+                "status": "orphan",
+                "created_at": None,
+                "bytes": file_path.stat().st_size,
+            }
+        )
+
+    if not entries:
+        raise ValueError("백업할 사진이 없습니다.")
+
+    fd, tmp_name = tempfile.mkstemp(suffix=".zip", prefix="yejinsaem-photos-")
+    os.close(fd)
+    zip_path = Path(tmp_name)
+
+    manifest = []
+    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_STORED) as archive:
+        for entry in entries:
+            archive.write(entry["path"], arcname=entry["arcname"])
+            manifest.append(
+                {
+                    "path": entry["arcname"],
+                    "submission_id": entry["submission_id"],
+                    "child_name": entry["child_name"],
+                    "status": entry["status"],
+                    "created_at": entry["created_at"],
+                    "bytes": entry["bytes"],
+                }
+            )
+        archive.writestr(
+            "manifest.json",
+            json.dumps(
+                {
+                    "exported_at": datetime.now(timezone.utc).isoformat(),
+                    "photo_count": len(entries),
+                    "files": manifest,
+                },
+                ensure_ascii=False,
+                indent=2,
+            ),
+        )
+
+    return zip_path, len(entries)
 
 
 def cleanup_storage(

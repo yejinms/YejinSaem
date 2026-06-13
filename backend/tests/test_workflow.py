@@ -231,6 +231,30 @@ def test_storage_status_endpoint():
     assert "database_human" in body
 
 
+def test_storage_photos_backup_zip():
+    parent_id = create_parent()
+    image_path = "test_uploads/backup-photo.jpg"
+    Path(image_path).write_bytes(b"photo-backup-bytes" * 100)
+
+    db = SessionLocal()
+    db.add(
+        Submission(
+            parent_id=parent_id,
+            photo_path=image_path,
+            status="sent",
+            feedback_draft="피드백",
+        )
+    )
+    db.commit()
+    db.close()
+
+    res = client.get("/admin/storage/backup/photos")
+    assert res.status_code == 200
+    assert res.headers["content-type"].startswith("application/zip")
+    assert "yejinsaem-photos" in res.headers.get("content-disposition", "")
+    assert len(res.content) > 100
+
+
 def test_get_submission_includes_last_selected_mission():
     parent_id = create_parent()
     db = SessionLocal()

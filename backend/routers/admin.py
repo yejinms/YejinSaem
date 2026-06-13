@@ -6,10 +6,11 @@ import json
 import logging
 import os
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -22,7 +23,12 @@ from datetime_utils import to_utc_iso
 from levels_utils import apply_parent_levels, parent_levels_for_api, resolve_levels_input
 from mission_history import get_last_selected_mission
 from parent_import import import_parents_from_text
-from storage_maintenance import cleanup_storage, database_file_path, get_storage_status
+from storage_maintenance import (
+    cleanup_storage,
+    create_photos_backup_zip,
+    database_file_path,
+    get_storage_status,
+)
 from services.claude_service import generate_feedback, get_anthropic_key_status
 from services.outbound_privacy import sanitize_channel_feedback
 from services.kakao_service import send_feedback_message
@@ -566,6 +572,24 @@ def download_database_backup():
         path=str(db_path),
         filename="yejinsaem-backup.db",
         media_type="application/octet-stream",
+    )
+
+
+@router.get("/storage/backup/photos")
+def download_photos_backup(background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    """Download all worksheet photos as a ZIP (back up before cleanup)."""
+    try:
+        zip_path, photo_count = create_photos_backup_zip(db)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    background_tasks.add_task(lambda: zip_path.unlink(missing_ok=True))
+    date_label = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    return FileResponse(
+        path=str(zip_path),
+        filename=f"yejinsaem-photos-{date_label}.zip",
+        media_type="application/zip",
+        headers={"X-Photo-Count": str(photo_count)},
     )
 
 
