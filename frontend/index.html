@@ -916,7 +916,7 @@
 <header>
   <div>
     <h1>생글방글 첨삭 관리자</h1>
-    <div class="subtitle">글쓰기 피드백 관리 <span id="build-version" style="opacity:0.5; font-size:12px;">v20260526</span></div>
+    <div class="subtitle">글쓰기 피드백 관리 <span id="build-version" style="opacity:0.5; font-size:12px;">v20260526b</span></div>
   </div>
 </header>
 
@@ -1013,8 +1013,8 @@
         용량 정보 불러오는 중...
       </p>
       <p style="font-size:13px; color:var(--text-muted); margin:0 0 12px; line-height:1.5;">
-        <strong>사진만 백업:</strong> <strong>사진 ZIP 백업</strong>만 누르세요.
-        Mac <code>문서/YejinSaem-backup/photos/</code>에 저장 후 <strong>용량 정리</strong>.
+        <strong>사진만 백업:</strong> <strong>사진 ZIP 백업</strong> 클릭 → 저장 위치 선택(또는 <strong>다운로드</strong> 폴더에 저장).
+        Mac Finder에서 ZIP 파일이 생겼는지 확인한 뒤 <strong>용량 정리</strong>.
       </p>
       <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
         <button type="button" class="btn btn-outline btn-sm" onclick="loadStorageStatus()">새로고침</button>
@@ -2226,6 +2226,40 @@ async function loadStorageStatus() {
   }
 }
 
+async function saveBlobDownload(blob, filename, successMessage) {
+  if (window.showSaveFilePicker) {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: filename,
+        types: [{
+          description: 'ZIP archive',
+          accept: { 'application/zip': ['.zip'] },
+        }],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      toast(successMessage + ' (선택한 위치에 저장됨)');
+      return;
+    } catch (err) {
+      if (err?.name === 'AbortError') {
+        toast('저장을 취소했습니다.', 2500);
+        return;
+      }
+    }
+  }
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  toast(successMessage + ' (보통 Mac 「다운로드」 폴더 — Finder에서 확인)');
+}
+
 async function downloadPhotosBackup() {
   const btn = document.getElementById('storage-photos-backup-btn');
   const original = btn?.innerHTML || '사진 ZIP 백업';
@@ -2254,15 +2288,12 @@ async function downloadPhotosBackup() {
     }
     const blob = await res.blob();
     const count = res.headers.get('X-Photo-Count');
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `yejinsaem-photos-${new Date().toISOString().slice(0, 10)}.zip`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-    toast(`사진 ZIP 저장 완료${count ? ` (${count}장)` : ''}. 용량 정리 전에 Mac에 보관하세요.`);
+    const filename = `yejinsaem-photos-${new Date().toISOString().slice(0, 10)}.zip`;
+    await saveBlobDownload(
+      blob,
+      filename,
+      `사진 ZIP 저장 완료${count ? ` (${count}장)` : ''}`,
+    );
   } catch (e) {
     toast('❌ 사진 백업 실패: ' + e.message, 5000);
   } finally {
@@ -2290,15 +2321,8 @@ async function downloadDbBackup() {
     }
     if (!res.ok) throw new Error('다운로드 실패');
     const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `yejinsaem-backup-${new Date().toISOString().slice(0, 10)}.db`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-    toast('DB 백업 파일을 저장했습니다');
+    const filename = `yejinsaem-backup-${new Date().toISOString().slice(0, 10)}.db`;
+    await saveBlobDownload(blob, filename, 'DB 백업 저장 완료');
   } catch (e) {
     toast('❌ 백업 실패: ' + e.message, 4000);
   }
