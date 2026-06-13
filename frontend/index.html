@@ -916,7 +916,7 @@
 <header>
   <div>
     <h1>생글방글 첨삭 관리자</h1>
-    <div class="subtitle">글쓰기 피드백 관리</div>
+    <div class="subtitle">글쓰기 피드백 관리 <span id="build-version" style="opacity:0.5; font-size:12px;">v20260526</span></div>
   </div>
 </header>
 
@@ -1005,29 +1005,16 @@
       <button class="btn btn-outline btn-sm" type="button" onclick="openParentsBulkImport()">+ 붙여넣기</button>
     </div>
   </div>
-  <div class="parent-search-wrap">
-    <input
-      type="search"
-      id="parents-search"
-      class="parent-search"
-      placeholder="이름이나 전화번호로 검색해보세요."
-      autocomplete="off"
-      aria-label="학부모 목록 검색"
-    />
-  </div>
-  <div id="parents-list">
-    <div class="loading">불러오는 중...</div>
-  </div>
 
-  <div class="card storage-card" style="margin-top:20px;">
+  <div class="card storage-card" style="margin-bottom:16px;">
     <div class="card-body">
       <div class="section-title" style="margin:0 0 8px; font-size:15px;">저장소 (Railway Volume)</div>
       <p id="storage-status-text" style="font-size:14px; color:var(--text-muted); margin:0 0 12px; line-height:1.5;">
         용량 정보 불러오는 중...
       </p>
       <p style="font-size:13px; color:var(--text-muted); margin:0 0 12px; line-height:1.5;">
-        <strong>사진만 백업:</strong> 아래 <strong>사진 ZIP 백업</strong>만 누르면 됩니다 (DB는 받지 않음).
-        Mac <code>문서/YejinSaem-backup/photos/</code>에 ZIP 저장 후 <strong>용량 정리</strong>하면 Volume이 줄어듭니다.
+        <strong>사진만 백업:</strong> <strong>사진 ZIP 백업</strong>만 누르세요.
+        Mac <code>문서/YejinSaem-backup/photos/</code>에 저장 후 <strong>용량 정리</strong>.
       </p>
       <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
         <button type="button" class="btn btn-outline btn-sm" onclick="loadStorageStatus()">새로고침</button>
@@ -1043,6 +1030,20 @@
       </div>
       <pre id="storage-cleanup-result" class="bulk-import-result" style="display:none; margin-top:12px;"></pre>
     </div>
+  </div>
+
+  <div class="parent-search-wrap">
+    <input
+      type="search"
+      id="parents-search"
+      class="parent-search"
+      placeholder="이름이나 전화번호로 검색해보세요."
+      autocomplete="off"
+      aria-label="학부모 목록 검색"
+    />
+  </div>
+  <div id="parents-list">
+    <div class="loading">불러오는 중...</div>
   </div>
 </div>
 

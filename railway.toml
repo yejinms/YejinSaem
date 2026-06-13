@@ -7,5 +7,6 @@ dockerfilePath = "Dockerfile"
 
 [deploy]
 healthcheckPath = "/health"
-healthcheckTimeout = 120
+healthcheckTimeout = 180
 restartPolicyType = "on_failure"
+# Redeploy trigger: 2026-05-26 volume-backup UI
