@@ -262,45 +262,28 @@
       display: grid;
       gap: 12px;
     }
-    .paste-zone {
-      min-height: 88px;
-      border: 1.5px solid var(--border);
+    .upload-empty-hint {
+      min-height: 72px;
+      border: 1.5px dashed var(--border);
       border-radius: var(--radius-card);
-      background: var(--white);
+      background: #fafafa;
       color: var(--text-muted);
       display: flex;
       align-items: center;
       justify-content: center;
       text-align: center;
       padding: 16px;
-      cursor: pointer;
-      outline: none;
-      font-size: var(--font-base);
+      font-size: var(--font-secondary);
       font-weight: 400;
       line-height: var(--line-body);
-      transition: border-color var(--motion-fast) var(--ease-standard);
-      touch-action: manipulation;
-      -webkit-tap-highlight-color: transparent;
-      user-select: none;
     }
-    .paste-zone[contenteditable="true"] {
-      caret-color: transparent;
-    }
-    .paste-zone[contenteditable="true"]:focus {
-      caret-color: var(--blue);
-    }
-    .paste-zone:focus,
-    .paste-zone.has-file {
-      border-color: var(--blue);
-      color: var(--text);
+    .upload-empty-hint.is-hidden {
+      display: none;
     }
     .upload-actions {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1fr;
       gap: 8px;
-    }
-    .upload-actions .btn-primary {
-      grid-column: 1 / -1;
     }
     .upload-preview {
       display: none;
@@ -742,6 +725,83 @@
       white-space: nowrap;
     }
 
+    /* ===== Submission review (mobile photo + feedback) ===== */
+    .modal.modal-submission {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      padding-bottom: 0;
+    }
+    .modal.modal-submission .modal-header,
+    .modal.modal-submission .modal-handle {
+      flex-shrink: 0;
+    }
+    .modal.modal-submission .modal-body {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+      padding-bottom: max(24px, env(safe-area-inset-bottom));
+    }
+    .submission-sticky-photos {
+      background: var(--white);
+    }
+    .submission-sticky-photos .photo-sticky-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+      font-size: var(--font-secondary);
+      font-weight: 600;
+      color: var(--text);
+    }
+    .submission-sticky-photos .photo-sticky-hint {
+      font-size: var(--font-caption);
+      font-weight: 500;
+      color: var(--blue);
+    }
+    .submission-settings {
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-card);
+      background: var(--white);
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+    .submission-settings > summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 14px 16px;
+      font-size: var(--font-secondary);
+      font-weight: 600;
+      color: var(--text);
+      background: #fafafa;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .submission-settings > summary::-webkit-details-marker { display: none; }
+    .submission-settings > summary::after {
+      content: '▾';
+      color: var(--text-muted);
+      font-size: 14px;
+      transition: transform var(--motion-fast) var(--ease-standard);
+    }
+    .submission-settings:not([open]) > summary::after {
+      transform: rotate(-90deg);
+    }
+    .submission-settings-body {
+      padding: 16px;
+      border-top: 1px solid var(--border);
+    }
+    .submission-settings-body > :last-child {
+      margin-bottom: 0;
+    }
+
     .phone-warning-card {
       background: var(--coupon-tint);
       border: none;
@@ -888,6 +948,41 @@
     }
 
     /* ===== Responsive ===== */
+    @media (max-width: 639px) {
+      .submission-review.is-reviewing .submission-sticky-photos {
+        position: sticky;
+        top: 0;
+        z-index: 6;
+        margin: -16px -24px 16px;
+        padding: 12px 24px 14px;
+        border-bottom: 1px solid var(--border);
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06);
+      }
+      .submission-review.is-reviewing .photo-gallery {
+        display: flex;
+        flex-wrap: nowrap;
+        gap: 8px;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        margin-bottom: 0;
+        padding-bottom: 2px;
+      }
+      .submission-review.is-reviewing .photo-gallery::-webkit-scrollbar { display: none; }
+      .submission-review.is-reviewing .photo-gallery .photo-full {
+        flex: 0 0 auto;
+        width: 92px;
+        height: 92px;
+        max-height: none;
+        object-fit: cover;
+      }
+      .submission-review.is-reviewing .feedback-area {
+        min-height: min(52vh, 440px);
+        font-size: 16px;
+        line-height: 1.65;
+        resize: vertical;
+      }
+    }
     @media (min-width: 640px) {
       .modal-overlay.open { justify-content: center; align-items: center; padding: 24px; }
       .modal {
@@ -896,6 +991,9 @@
         max-height: 90vh;
         border: 1px solid var(--border);
         box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+      }
+      .submission-review.is-reviewing .feedback-area {
+        min-height: 220px;
       }
       .tabs-wrap { padding-left: 24px; padding-right: 24px; }
       .tab-panel { max-width: 640px; margin: 0 auto; padding-left: 24px; padding-right: 24px; }
@@ -916,7 +1014,7 @@
 <header>
   <div>
     <h1>생글방글 첨삭 관리자</h1>
-    <div class="subtitle">글쓰기 피드백 관리 <span id="build-version" style="opacity:0.5; font-size:12px;">v20260526b</span></div>
+    <div class="subtitle">글쓰기 피드백 관리 <span id="build-version" style="opacity:0.5; font-size:12px;">v20260723a</span></div>
   </div>
 </header>
 
@@ -953,25 +1051,11 @@
           </select>
         </div>
       </div>
-      <div
-        class="paste-zone"
-        id="paste-zone"
-        tabindex="0"
-        contenteditable="true"
-        role="textbox"
-        aria-multiline="true"
-        aria-label="복사한 이미지 붙여넣기"
-        spellcheck="false"
-        autocapitalize="off"
-        autocomplete="off"
-      >
-        <span id="paste-zone-hint" contenteditable="false">이미지 파일을 선택하거나 이 영역을 클릭한 뒤 붙여넣기</span>
-      </div>
+      <div class="upload-empty-hint" id="upload-empty-hint">사진을 선택해 제출을 만들어 주세요.</div>
       <div class="upload-preview" id="upload-preview"></div>
       <input type="file" id="direct-photo-input" accept="image/*" multiple style="display:none" />
       <div class="upload-actions">
         <button type="button" class="btn btn-outline" onclick="chooseDirectPhoto()">사진 선택</button>
-        <button type="button" class="btn btn-outline" id="direct-paste-btn" onclick="pasteFromSystemClipboard()">붙여넣기</button>
         <button type="button" class="btn btn-primary" id="direct-submit-btn" onclick="createDirectSubmission()">제출 만들기</button>
       </div>
     </div>
@@ -1054,7 +1138,7 @@
 
 <!-- ===== Modal: Submission Detail ===== -->
 <div class="modal-overlay" id="submission-modal">
-  <div class="modal">
+  <div class="modal modal-submission">
     <div class="modal-handle"></div>
     <div class="modal-header">
       <span class="modal-title" id="modal-title">피드백 생성</span>
@@ -1578,143 +1662,29 @@ async function loadUploadParents() {
   }
 }
 
-function prefersDirectFilePickOnTap() {
-  return window.matchMedia('(pointer: coarse)').matches
-    || !window.matchMedia('(hover: hover)').matches;
-}
-
-function canReadClipboardImages() {
-  return !!(navigator.clipboard && typeof navigator.clipboard.read === 'function');
-}
-
-function pasteZoneDefaultHint() {
-  return prefersDirectFilePickOnTap()
-    ? '복사한 이미지: 탭 또는 「붙여넣기」 · 갤러리는 「사진 선택」'
-    : '클릭한 뒤 붙여넣기(Ctrl+V) 또는 사진 선택';
-}
-
-function pasteZoneReadyHint() {
-  return prefersDirectFilePickOnTap()
-    ? `${directUploadFiles.length}장 준비됨 · 붙여넣기 또는 사진 선택으로 추가`
-    : `${directUploadFiles.length}장 준비됨 · 붙여넣기 또는 사진 선택으로 추가`;
-}
-
-function setPasteZoneHint(text) {
-  const hint = document.getElementById('paste-zone-hint');
-  if (hint) hint.textContent = text;
-}
-
-function restorePasteZoneDisplay() {
-  const zone = document.getElementById('paste-zone');
-  let hint = document.getElementById('paste-zone-hint');
-  if (!zone) return;
-  if (!hint) {
-    hint = document.createElement('span');
-    hint.id = 'paste-zone-hint';
-    hint.contentEditable = 'false';
-  }
-  zone.replaceChildren(hint);
-  setPasteZoneHint(directUploadFiles.length ? pasteZoneReadyHint() : pasteZoneDefaultHint());
-}
-
 function chooseDirectPhoto() {
   document.getElementById('direct-photo-input')?.click();
 }
 
-function focusPasteZoneForNativePaste() {
-  const zone = document.getElementById('paste-zone');
-  if (!zone) return;
-  zone.focus();
-  toast('이 영역을 길게 눌러 「붙여넣기」를 선택해주세요.', 4000);
-}
-
-async function pasteFromSystemClipboard({ silent = false } = {}) {
-  if (!canReadClipboardImages()) {
-    if (!silent) focusPasteZoneForNativePaste();
-    return false;
-  }
-
-  try {
-    const clipboardItems = await navigator.clipboard.read();
-    const files = [];
-    let index = 0;
-    for (const item of clipboardItems) {
-      const imageType = item.types.find(type => type.startsWith('image/'));
-      if (!imageType) continue;
-      const blob = await item.getType(imageType);
-      const ext = imageType === 'image/jpeg' ? 'jpg'
-        : imageType === 'image/webp' ? 'webp'
-        : imageType === 'image/gif' ? 'gif'
-        : 'png';
-      files.push(new File([blob], `pasted-${Date.now()}-${++index}.${ext}`, { type: imageType }));
-    }
-
-    if (files.length > 0) {
-      addDirectUploadFiles(files);
-      restorePasteZoneDisplay();
-      if (!silent) toast(`${files.length}장 붙여넣었습니다.`, 1800);
-      return true;
-    }
-    if (!silent) toast('클립보드에 이미지가 없습니다. 사진 앱에서 이미지를 복사한 뒤 다시 시도해주세요.', 3500);
-  } catch {
-    if (!silent) focusPasteZoneForNativePaste();
-  }
-  return false;
-}
-
-async function handlePasteZoneActivate() {
-  const zone = document.getElementById('paste-zone');
-  if (!zone) return;
-
-  if (prefersDirectFilePickOnTap()) {
-    const pasted = await pasteFromSystemClipboard({ silent: true });
-    if (!pasted) focusPasteZoneForNativePaste();
-    return;
-  }
-  zone.focus();
-}
-
-function addFilesFromClipboardData(clipboardData) {
-  const items = Array.from(clipboardData?.items || []);
-  const imageItems = items.filter(item => item.kind === 'file' && item.type.startsWith('image/'));
-  if (imageItems.length === 0) return false;
-
-  const pastedFiles = imageItems.map((item, index) => {
-    const blob = item.getAsFile();
-    if (!blob) return null;
-
-    const ext = item.type === 'image/jpeg' ? 'jpg'
-      : item.type === 'image/webp' ? 'webp'
-      : item.type === 'image/gif' ? 'gif'
-      : 'png';
-    return new File([blob], `pasted-${Date.now()}-${index + 1}.${ext}`, { type: item.type });
-  }).filter(Boolean);
-
-  addDirectUploadFiles(pastedFiles);
-  return pastedFiles.length > 0;
-}
-
 function renderDirectUploadFiles() {
-  const zone = document.getElementById('paste-zone');
+  const hint = document.getElementById('upload-empty-hint');
   const preview = document.getElementById('upload-preview');
-  if (!zone || !preview) return;
+  if (!preview) return;
 
   if (directUploadFiles.length === 0) {
-    zone.classList.remove('has-file');
-    setPasteZoneHint(pasteZoneDefaultHint());
+    hint?.classList.remove('is-hidden');
     preview.style.display = 'none';
     preview.innerHTML = '';
     return;
   }
 
-  zone.classList.add('has-file');
-  setPasteZoneHint(pasteZoneReadyHint());
+  hint?.classList.add('is-hidden');
   preview.style.display = 'grid';
   preview.innerHTML = directUploadFiles.map(item => `
     <div class="upload-preview-item">
       <img src="${item.previewUrl}" alt="${escapeHtml(item.file.name || '업로드 이미지')}" />
       <button class="upload-remove-btn" type="button" onclick="removeDirectUploadFile(${item.id})" aria-label="이미지 삭제">×</button>
-      <div class="upload-preview-name">${escapeHtml(item.file.name || '붙여넣은 이미지')}</div>
+      <div class="upload-preview-name">${escapeHtml(item.file.name || '선택한 이미지')}</div>
     </div>
   `).join('');
 }
@@ -1776,13 +1746,13 @@ async function createDirectSubmission() {
     return;
   }
   if (directUploadFiles.length === 0) {
-    toast('이미지를 1장 이상 선택하거나 붙여넣어주세요.', 2500);
+    toast('이미지를 1장 이상 선택해주세요.', 2500);
     return;
   }
 
   const form = new FormData();
   directUploadFiles.forEach(item => {
-    form.append('photos', item.file, item.file.name || 'pasted-image.png');
+    form.append('photos', item.file, item.file.name || 'upload-image.png');
   });
 
   btn.disabled = true;
@@ -1902,114 +1872,128 @@ function renderSubmissionModal(s) {
     .join('');
 
   const feedbackValue = s.feedback_draft || '';
+  const hasFeedback = !!feedbackValue.trim();
   const isSent = s.status === 'sent';
   const isApproved = s.status === 'approved';
   const sendButtonText = isApproved ? '다시 전송' : '승인 후 카카오 전송';
   const needsPhone = parent && !parent.phone_number;
   const parentId = parent ? parent.id : null;
+  const settingsOpenAttr = hasFeedback ? '' : ' open';
 
   document.getElementById('submission-modal-body').innerHTML = `
-    ${photoHtml}
-
-    ${needsPhone ? `
-    <div class="phone-warning-card">
-      <strong>친구톡 발송을 위해 전화번호 등록이 필요해요</strong>
-      채널에서 온 사진·카카오 연결은 이미 되어 있어요. 아래에서 <strong>전화번호</strong>와 <strong>내부 관리명</strong>만 넣으면
-      「승인 후 카카오 전송」이 가능합니다. (카카오 연결 ID는 수정하지 않아도 됩니다)
-      <button type="button" class="btn btn-outline btn-sm" onclick="openEditParentFromSubmission(${parentId})">전화번호 등록하기</button>
-    </div>
-    ` : ''}
-
-    <div class="child-info-card">
-      <div class="child-info-row">
-        <span class="label">내부 관리명</span>
-        <span class="value">${escapeHtml(childName)}</span>
+    <div class="submission-review ${hasFeedback ? 'is-reviewing' : ''}" id="submission-review">
+      <div class="submission-sticky-photos" id="submission-sticky-photos">
+        <div class="photo-sticky-label">
+          <span>제출 사진</span>
+          ${photoPaths.length > 0 ? '<span class="photo-sticky-hint">탭하면 확대</span>' : ''}
+        </div>
+        ${photoHtml}
       </div>
-      <div class="child-info-row">
-        <span class="label">전화번호</span>
-        <span class="value">${parent && parent.phone_number ? escapeHtml(parent.phone_number) : '미등록 (친구톡 불가)'}</span>
-      </div>
-      <div class="child-info-row">
-        <span class="label">나이</span>
-        <span class="value">${childAge}세</span>
-      </div>
-      <div class="child-info-row">
-        <span class="label">현재 상태</span>
-        <span class="value"><span class="status-badge status-${s.status}">${statusLabel(s.status)}</span></span>
-      </div>
-      <div class="child-info-row">
-        <span class="label">제출 시각</span>
-        <span class="value">${formatDate(s.created_at)}</span>
-      </div>
-    </div>
 
-    ${isSent ? '<div class="sent-banner">이미 전송된 피드백입니다</div>' : ''}
-
-    <div class="child-info-card last-mission-card">
-      <div class="child-info-row">
-        <span class="label">지난 번 선택 미션</span>
-        <span class="value ${lastMission ? '' : 'muted'}">${
-          lastMission
-            ? `${escapeHtml(lastMission.level)} ${lastMission.stage}단계 · ${escapeHtml(lastMission.stage_title || '')}`
-            : '선택 없음'
-        }</span>
+      ${needsPhone ? `
+      <div class="phone-warning-card">
+        <strong>친구톡 발송을 위해 전화번호 등록이 필요해요</strong>
+        채널에서 온 사진·카카오 연결은 이미 되어 있어요. 아래에서 <strong>전화번호</strong>와 <strong>내부 관리명</strong>만 넣으면
+        「승인 후 카카오 전송」이 가능합니다. (카카오 연결 ID는 수정하지 않아도 됩니다)
+        <button type="button" class="btn btn-outline btn-sm" onclick="openEditParentFromSubmission(${parentId})">전화번호 등록하기</button>
       </div>
-      ${
-        lastMission && lastMission.stage_mission
-          ? `<div class="child-info-row">
-        <span class="label">기대 표현</span>
-        <span class="value">${escapeHtml(lastMission.stage_mission)}</span>
-      </div>`
-          : ''
-      }
-    </div>
+      ` : ''}
 
-    <div class="form-group">
-      <label>다음 미션 · 레벨</label>
-      <div class="level-selector" id="modal-level-btns">
-        ${allowedLevels.map(lk => `
-          <button type="button" class="level-btn ${lk === currentLevel ? 'active' : ''}"
-            data-level="${lk}" onclick="selectModalLevel(this)">
-            ${lk}<br><small style="font-weight:400">${lk==='표현력'?'7~8세':lk==='초등기초'?'9~11세':'11~13세'}</small>
-          </button>`).join('')}
-      </div>
-    </div>
+      <details class="submission-settings" id="submission-settings"${settingsOpenAttr}>
+        <summary>설정 다시 보기 (레벨 · 미션 · 추가 지시)</summary>
+        <div class="submission-settings-body">
+          <div class="child-info-card">
+            <div class="child-info-row">
+              <span class="label">내부 관리명</span>
+              <span class="value">${escapeHtml(childName)}</span>
+            </div>
+            <div class="child-info-row">
+              <span class="label">전화번호</span>
+              <span class="value">${parent && parent.phone_number ? escapeHtml(parent.phone_number) : '미등록 (친구톡 불가)'}</span>
+            </div>
+            <div class="child-info-row">
+              <span class="label">나이</span>
+              <span class="value">${childAge}세</span>
+            </div>
+            <div class="child-info-row">
+              <span class="label">현재 상태</span>
+              <span class="value"><span class="status-badge status-${s.status}">${statusLabel(s.status)}</span></span>
+            </div>
+            <div class="child-info-row">
+              <span class="label">제출 시각</span>
+              <span class="value">${formatDate(s.created_at)}</span>
+            </div>
+          </div>
 
-    <div class="form-group">
-      <label>다음 글쓰기 미션</label>
-      <select id="modal-stage" onchange="selectedStage = parseInt(this.value)">
-        ${stageOptions}
-      </select>
-    </div>
+          ${isSent ? '<div class="sent-banner">이미 전송된 피드백입니다</div>' : ''}
 
-    <div class="form-group">
-      <label>추가 지시사항 (선택)</label>
-      <textarea id="modal-extra" placeholder="예: 칭찬 위주로, 다음 미션 제안 포함 등">${s.extra_instruction || ''}</textarea>
-    </div>
+          <div class="child-info-card last-mission-card">
+            <div class="child-info-row">
+              <span class="label">지난 번 선택 미션</span>
+              <span class="value ${lastMission ? '' : 'muted'}">${
+                lastMission
+                  ? `${escapeHtml(lastMission.level)} ${lastMission.stage}단계 · ${escapeHtml(lastMission.stage_title || '')}`
+                  : '선택 없음'
+              }</span>
+            </div>
+            ${
+              lastMission && lastMission.stage_mission
+                ? `<div class="child-info-row">
+              <span class="label">기대 표현</span>
+              <span class="value">${escapeHtml(lastMission.stage_mission)}</span>
+            </div>`
+                : ''
+            }
+          </div>
 
-    <div class="feedback-actions" style="margin-top:0; margin-bottom:12px;">
-      <button class="btn btn-primary" id="generate-btn" onclick="generateFeedback()" ${isSent ? 'disabled' : ''}>
-        피드백 생성
-      </button>
-      <button class="btn btn-danger btn-sm" type="button" onclick="deleteSubmission(${s.id})">제출 삭제</button>
-    </div>
+          <div class="form-group">
+            <label>다음 미션 · 레벨</label>
+            <div class="level-selector" id="modal-level-btns">
+              ${allowedLevels.map(lk => `
+                <button type="button" class="level-btn ${lk === currentLevel ? 'active' : ''}"
+                  data-level="${lk}" onclick="selectModalLevel(this)">
+                  ${lk}<br><small style="font-weight:400">${lk==='표현력'?'7~8세':lk==='초등기초'?'9~11세':'11~13세'}</small>
+                </button>`).join('')}
+            </div>
+          </div>
 
-    <div id="feedback-section" style="${feedbackValue ? '' : 'display:none'}; margin-top:20px;">
-      <div class="divider"></div>
-      <div class="form-group">
-        <label>생성된 피드백 (수정 가능)</label>
-        <textarea class="feedback-area" id="modal-feedback" rows="6">${escapeHtml(feedbackValue)}</textarea>
-      </div>
-      <div class="feedback-actions">
-        <button class="btn btn-success btn-send-kakao" id="approve-btn" data-retry="${isApproved ? 'true' : 'false'}" onclick="approveFeedback()" ${isSent || needsPhone ? 'disabled' : ''} title="${needsPhone ? '전화번호 등록 후 카카오 전송 가능' : ''}">
-          ${sendButtonText}
-        </button>
-        <button class="btn btn-outline btn-mark-sent" id="mark-sent-btn" onclick="markSentManually()" ${isSent ? 'disabled' : ''} type="button">
-          직접 전송 완료
-        </button>
-        <button class="btn btn-outline copy-feedback-btn" id="copy-feedback-btn" onclick="copyFeedback()" type="button">
-          복사
-        </button>
+          <div class="form-group">
+            <label>다음 글쓰기 미션</label>
+            <select id="modal-stage" onchange="selectedStage = parseInt(this.value)">
+              ${stageOptions}
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>추가 지시사항 (선택)</label>
+            <textarea id="modal-extra" placeholder="예: 칭찬 위주로, 다음 미션 제안 포함 등">${s.extra_instruction || ''}</textarea>
+          </div>
+
+          <div class="feedback-actions" style="margin-top:0;">
+            <button class="btn btn-primary" id="generate-btn" onclick="generateFeedback()" ${isSent ? 'disabled' : ''}>
+              피드백 생성
+            </button>
+            <button class="btn btn-danger btn-sm" type="button" onclick="deleteSubmission(${s.id})">제출 삭제</button>
+          </div>
+        </div>
+      </details>
+
+      <div id="feedback-section" style="${hasFeedback ? '' : 'display:none'}; margin-top:4px;">
+        <div class="form-group">
+          <label>생성된 피드백 (수정 가능)</label>
+          <textarea class="feedback-area" id="modal-feedback" rows="10">${escapeHtml(feedbackValue)}</textarea>
+        </div>
+        <div class="feedback-actions">
+          <button class="btn btn-success btn-send-kakao" id="approve-btn" data-retry="${isApproved ? 'true' : 'false'}" onclick="approveFeedback()" ${isSent || needsPhone ? 'disabled' : ''} title="${needsPhone ? '전화번호 등록 후 카카오 전송 가능' : ''}">
+            ${sendButtonText}
+          </button>
+          <button class="btn btn-outline btn-mark-sent" id="mark-sent-btn" onclick="markSentManually()" ${isSent ? 'disabled' : ''} type="button">
+            직접 전송 완료
+          </button>
+          <button class="btn btn-outline copy-feedback-btn" id="copy-feedback-btn" onclick="copyFeedback()" type="button">
+            복사
+          </button>
+        </div>
       </div>
     </div>
   `;
@@ -2017,6 +2001,24 @@ function renderSubmissionModal(s) {
   document.querySelectorAll('#submission-modal-body .photo-zoomable').forEach(img => {
     img.addEventListener('click', () => openPhotoLightbox(img.dataset.fullSrc));
   });
+}
+
+function enterFeedbackReviewMode() {
+  const review = document.getElementById('submission-review');
+  const settings = document.getElementById('submission-settings');
+  const feedbackSection = document.getElementById('feedback-section');
+  const feedbackArea = document.getElementById('modal-feedback');
+
+  review?.classList.add('is-reviewing');
+  if (settings) settings.open = false;
+  if (feedbackSection) feedbackSection.style.display = '';
+
+  if (feedbackArea) {
+    requestAnimationFrame(() => {
+      feedbackArea.focus({ preventScroll: true });
+      feedbackSection?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+  }
 }
 
 function selectModalLevel(btn) {
@@ -2051,10 +2053,9 @@ async function generateFeedback() {
       }),
     });
 
-    const feedbackSection = document.getElementById('feedback-section');
     const feedbackArea = document.getElementById('modal-feedback');
-    feedbackSection.style.display = '';
-    feedbackArea.value = result.feedback_draft;
+    if (feedbackArea) feedbackArea.value = result.feedback_draft;
+    enterFeedbackReviewMode();
     toast('피드백이 생성되었어요! 확인 후 전송해 주세요 😊');
   } catch (e) {
     toast('❌ 오류: ' + e.message, 4000);
@@ -2606,30 +2607,9 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('parents-search')?.addEventListener('input', renderParentsList);
 
   const photoInput = document.getElementById('direct-photo-input');
-  const pasteZone = document.getElementById('paste-zone');
-
   photoInput?.addEventListener('change', e => {
     addDirectUploadFiles(e.target.files);
     e.target.value = '';
-  });
-
-  setPasteZoneHint(pasteZoneDefaultHint());
-
-  pasteZone?.addEventListener('click', () => { void handlePasteZoneActivate(); });
-  pasteZone?.addEventListener('keydown', e => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      void handlePasteZoneActivate();
-    }
-  });
-  pasteZone?.addEventListener('paste', e => {
-    e.preventDefault();
-    const ok = addFilesFromClipboardData(e.clipboardData);
-    restorePasteZoneDisplay();
-    if (!ok) toast('클립보드에서 이미지를 찾지 못했습니다.', 2500);
-  });
-  pasteZone?.addEventListener('input', () => {
-    restorePasteZoneDisplay();
   });
 
   setInterval(() => {
