@@ -1514,10 +1514,28 @@ function openModal(id) {
   document.getElementById(id).classList.add('open');
   document.body.style.overflow = 'hidden';
 }
-function closeModal(id) {
+function hasUnsavedFeedback() {
+  const modal = document.getElementById('submission-modal');
+  const field = document.getElementById('modal-feedback');
+  return Boolean(modal?.classList.contains('open') && field && field.value !== field.defaultValue);
+}
+
+function confirmDiscardFeedback() {
+  return !hasUnsavedFeedback() || confirm('수정한 피드백이 저장되지 않습니다.\n나가시겠어요?');
+}
+
+window.addEventListener('beforeunload', event => {
+  if (!hasUnsavedFeedback()) return;
+  event.preventDefault();
+  event.returnValue = '';
+});
+
+function closeModal(id, { discardConfirmed = false } = {}) {
+  if (id === 'submission-modal' && !discardConfirmed && !confirmDiscardFeedback()) return false;
   document.getElementById(id).classList.remove('open');
   closePhotoLightbox();
   document.body.style.overflow = '';
+  return true;
 }
 
 function openPhotoLightbox(src) {
@@ -1829,6 +1847,7 @@ function renderSubmissionList(container, submissions) {
 
 // ===== Open Submission Detail Modal =====
 async function openSubmission(id) {
+  if (!confirmDiscardFeedback()) return;
   currentSubmissionId = id;
   document.getElementById('modal-title').textContent = '피드백 생성';
   document.getElementById('submission-modal-body').innerHTML = '<div class="loading">불러오는 중...</div>';
@@ -2037,6 +2056,7 @@ function selectModalLevel(btn) {
 
 // ===== Generate Feedback =====
 async function generateFeedback() {
+  if (hasUnsavedFeedback() && !confirm('다시 생성하면 수정한 피드백이 사라집니다.\n다시 생성하시겠어요?')) return;
   const btn = document.getElementById('generate-btn');
   const extra = document.getElementById('modal-extra')?.value || '';
 
@@ -2054,7 +2074,10 @@ async function generateFeedback() {
     });
 
     const feedbackArea = document.getElementById('modal-feedback');
-    if (feedbackArea) feedbackArea.value = result.feedback_draft;
+    if (feedbackArea) {
+      feedbackArea.value = result.feedback_draft;
+      feedbackArea.defaultValue = result.feedback_draft;
+    }
     enterFeedbackReviewMode();
     toast('피드백이 생성되었어요! 확인 후 전송해 주세요 😊');
   } catch (e) {
@@ -2136,6 +2159,7 @@ async function markSentManually() {
       body: JSON.stringify({ feedback_text: feedbackText }),
     });
     toast('✅ 직접 전송 완료 처리되었습니다.');
+    document.getElementById('modal-feedback').defaultValue = feedbackText;
     closeModal('submission-modal');
     loadPending();
     loadHistory();
@@ -2170,6 +2194,7 @@ async function approveFeedback() {
       body: JSON.stringify({ feedback_text: feedbackText }),
     });
     toast('✅ 피드백이 전송되었습니다!');
+    document.getElementById('modal-feedback').defaultValue = feedbackText;
     closeModal('submission-modal');
     loadPending();
   } catch (e) {
@@ -2460,7 +2485,7 @@ async function deleteSubmission(submissionId) {
   try {
     await api(`/admin/submissions/${submissionId}`, { method: 'DELETE' });
     toast('제출이 삭제되었습니다');
-    closeModal('submission-modal');
+    closeModal('submission-modal', { discardConfirmed: true });
     currentSubmissionId = null;
     loadPending();
     const historyPanel = document.getElementById('panel-history');
@@ -2475,7 +2500,7 @@ async function deleteParent(parentId) {
   try {
     await api(`/admin/parents/${parentId}`, { method: 'DELETE' });
     toast('삭제되었습니다');
-    closeModal('submission-modal');
+    closeModal('submission-modal', { discardConfirmed: true });
     currentSubmissionId = null;
     await refreshParentsCache();
     loadPending();
@@ -2545,7 +2570,9 @@ async function saveParent(e) {
     await refreshParentsCache();
     if (currentSubmissionId && document.getElementById('submission-modal').classList.contains('open')) {
       const s = await api(`/admin/submissions/${currentSubmissionId}`);
+      const editedFeedback = hasUnsavedFeedback() ? document.getElementById('modal-feedback').value : null;
       renderSubmissionModal(s);
+      if (editedFeedback !== null) document.getElementById('modal-feedback').value = editedFeedback;
     }
   } catch (e) {
     toast('❌ 오류: ' + e.message, 4000);
