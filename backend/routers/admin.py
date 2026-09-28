@@ -549,6 +549,15 @@ def storage_status(db: Session = Depends(get_db)):
     return result
 
 
+@router.post("/storage/archive-now", status_code=202)
+def start_storage_archive_now():
+    """Queue one verified R2 archive regardless of the normal size threshold."""
+    run_id = request_archive_check(force=True)
+    if not run_id:
+        raise HTTPException(status_code=409, detail="R2 백업이 설정되지 않았거나 이미 실행 중입니다.")
+    return {"run_id": run_id, "status": "started"}
+
+
 @router.post("/storage/cleanup")
 def storage_cleanup(body: StorageCleanupRequest, db: Session = Depends(get_db)):
     """

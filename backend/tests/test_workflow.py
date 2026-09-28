@@ -315,6 +315,43 @@ def test_auto_archive_removes_only_verified_sent_photos(monkeypatch):
     db.close()
 
 
+def test_manual_archive_runs_below_threshold(monkeypatch):
+    parent_id = create_parent()
+    photo = Path("test_uploads/manual-archive.jpg")
+    photo.write_bytes(b"manual-photo" * 100)
+    with SessionLocal() as db:
+        db.add(Submission(parent_id=parent_id, photo_path=str(photo), status="sent"))
+        db.commit()
+        configure_test_archive(monkeypatch)
+        monkeypatch.setattr(storage_r2_archive, "THRESHOLD_BYTES", 350_000_000)
+        monkeypatch.setattr(storage_r2_archive, "upload_verified", lambda *_args: None)
+        assert storage_r2_archive.archive_if_needed(db) is None
+        result = storage_r2_archive.archive_if_needed(db, force=True)
+        assert result["photos_archived"] == 1
+        assert result["sent_photos_removed"] == 1
+        assert not photo.exists()
+
+
+def test_archive_success_notice_contains_backup_keys(monkeypatch):
+    sent = []
+
+    class Response:
+        text = "ok"
+
+        def raise_for_status(self):
+            pass
+
+    monkeypatch.setenv("SLACK_R2_WEBHOOK_URL", "https://hooks.slack.com/services/test")
+    monkeypatch.setattr(storage_slack_alert.requests, "post",
+                        lambda url, json, timeout: sent.append(json["text"]) or Response())
+    assert storage_slack_alert.notify_archive_success({
+        "photos_key": "backups/photos.zip", "database_key": "backups/database.sqlite3",
+        "photos_archived": 2, "sent_photos_removed": 1, "r2_used_bytes_after": 123_000_000,
+    })
+    assert "backups/photos.zip" in sent[0]
+    assert "0.12GB" in sent[0]
+
+
 def test_auto_archive_upload_failure_keeps_photos(monkeypatch):
     parent_id = create_parent()
     sent_path = Path("test_uploads/auto-failure.jpg")

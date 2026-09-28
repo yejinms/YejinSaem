@@ -18,7 +18,7 @@ from botocore.config import Config
 
 from database import SessionLocal, Submission
 from storage_maintenance import create_photos_backup_snapshot, get_storage_status
-from storage_slack_alert import maybe_alert_r2_capacity
+from storage_slack_alert import maybe_alert_r2_capacity, notify_archive_success
 from upload_paths import get_submission_photo_paths, resolve_upload_file_path, upload_dir
 
 logger = logging.getLogger(__name__)
@@ -36,9 +36,11 @@ def _save_state(state: dict) -> None:
     path = _state_path()
     temp = path.with_suffix(".tmp")
     try:
-        temp.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
+        previous = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+        previous.update(state)
+        temp.write_text(json.dumps(previous, ensure_ascii=False), encoding="utf-8")
         temp.replace(path)
-    except OSError:
+    except (OSError, ValueError):
         logger.exception("Could not save R2 archive status")
         temp.unlink(missing_ok=True)
 
@@ -52,14 +54,19 @@ def configured() -> bool:
     )
 
 
-def request_archive_check() -> None:
+def request_archive_check(force: bool = False) -> str | None:
     """Called after startup and committed image uploads; never blocks a customer request."""
     if not configured() or not _worker_lock.acquire(blocking=False):
-        return
-    threading.Thread(target=_run_worker, name="storage-auto-archive", daemon=True).start()
+        return None
+    run_id = uuid.uuid4().hex
+    _save_state({"run_id": run_id, "running": True,
+                 "started_at": datetime.now(timezone.utc).isoformat(), "last_error": None})
+    threading.Thread(target=_run_worker, args=(force, run_id),
+                     name="storage-auto-archive", daemon=True).start()
+    return run_id
 
 
-def _run_worker() -> None:
+def _run_worker(force: bool = False, run_id: str | None = None) -> None:
     try:
         if os.getenv("SLACK_R2_WEBHOOK_URL"):
             try:
@@ -67,16 +74,27 @@ def _run_worker() -> None:
             except Exception:
                 logger.exception("Could not check or send R2 capacity Slack alert")
         with SessionLocal() as db:
-            result = archive_if_needed(db)
+            result = archive_if_needed(db, force=force)
             if result:
                 logger.info("R2 archive completed: %s", result)
-                _save_state({"last_success_at": datetime.now(timezone.utc).isoformat(),
+                _save_state({"run_id": run_id, "running": False,
+                             "last_success_at": datetime.now(timezone.utc).isoformat(),
                              "photos_key": result["photos_key"],
                              "database_key": result["database_key"],
+                             "photos_archived": result["photos_archived"],
+                             "sent_photos_removed": result["sent_photos_removed"],
                              "last_error": None})
+                try:
+                    notify_archive_success(result)
+                except Exception:
+                    logger.exception("R2 backup succeeded, but Slack completion notice failed")
+            else:
+                _save_state({"run_id": run_id, "running": False,
+                             "last_error": "백업할 발송 완료 사진이 없습니다." if force else None})
     except Exception:
         logger.exception("R2 archive failed; source photos were retained unless individually verified")
-        _save_state({"last_error_at": datetime.now(timezone.utc).isoformat(),
+        _save_state({"run_id": run_id, "running": False,
+                     "last_error_at": datetime.now(timezone.utc).isoformat(),
                      "last_error": "R2 백업이 실패했습니다. Railway 로그를 확인하세요."})
     finally:
         _worker_lock.release()
@@ -229,11 +247,11 @@ def cleanup_archived_sent_photos(db, entries: list[dict]) -> int:
     return removed
 
 
-def archive_if_needed(db) -> dict | None:
+def archive_if_needed(db, *, force: bool = False) -> dict | None:
     if not configured():
         return None
     status = get_storage_status(db)
-    if status["total_bytes"] < THRESHOLD_BYTES:
+    if not force and status["total_bytes"] < THRESHOLD_BYTES:
         return None
     if status["sent_submissions_with_photos"] == 0:
         logger.warning("Volume crossed archive threshold, but no sent photos can be cleaned")

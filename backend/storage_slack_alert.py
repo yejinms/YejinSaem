@@ -68,3 +68,22 @@ def maybe_alert_r2_capacity(used_bytes: int) -> bool:
     finally:
         temp.unlink(missing_ok=True)
     return True
+
+
+def notify_archive_success(result: dict) -> bool:
+    """Notify the channel after both backup objects were verified and cleanup ended."""
+    url = _webhook_url()
+    if not url:
+        return False
+    message = (
+        "✅ 예진쌤 첨삭 기록 R2 저장 완료\n"
+        f"사진 ZIP: {result['photos_key']}\n"
+        f"DB 백업: {result['database_key']}\n"
+        f"사진 {result['photos_archived']}개 백업 · 발송 완료 사진 {result['sent_photos_removed']}개 Railway에서 정리\n"
+        f"R2 보관량: {result['r2_used_bytes_after'] / 1_000_000_000:.2f}GB / 9GB"
+    )
+    response = requests.post(url, json={"text": message}, timeout=10)
+    response.raise_for_status()
+    if response.text.strip() != "ok":
+        raise RuntimeError("Slack webhook did not confirm delivery")
+    return True
