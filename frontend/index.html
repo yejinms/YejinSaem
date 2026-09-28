@@ -1278,6 +1278,18 @@
   </div>
 </div>
 
+<dialog id="admin-login-dialog" style="border:0; border-radius:16px; padding:24px; width:min(90vw,360px); box-shadow:0 16px 48px rgba(0,0,0,.25)">
+  <form id="admin-login-form">
+    <h2 style="margin:0 0 8px; font-size:20px">관리자 로그인</h2>
+    <p id="admin-login-message" style="margin:0 0 16px; color:var(--text-muted)">관리자 비밀번호를 입력해주세요.</p>
+    <input id="admin-login-password" type="password" autocomplete="current-password" required aria-label="관리자 비밀번호" style="width:100%; box-sizing:border-box; padding:12px; margin-bottom:16px; border:1px solid var(--border); border-radius:8px">
+    <div style="display:flex; gap:8px; justify-content:flex-end">
+      <button id="admin-login-cancel" type="button" class="btn btn-outline">취소</button>
+      <button type="submit" class="btn btn-primary">확인</button>
+    </div>
+  </form>
+</dialog>
+
 <script>
 // ===== Config =====
 const API_BASE = '';  // Same origin
@@ -1472,19 +1484,38 @@ function formatApiErrorDetail(detail) {
 
 let adminTokenPrompt = null;
 
-function requestAdminToken() {
+function requestAdminToken(invalid = false) {
   const cached = sessionStorage.getItem(ADMIN_TOKEN_KEY);
   if (cached) return Promise.resolve(cached);
 
   if (!adminTokenPrompt) {
     adminTokenPrompt = new Promise((resolve, reject) => {
-      const password = prompt('관리자 비밀번호를 입력해주세요.');
-      if (!password) {
+      const dialog = document.getElementById('admin-login-dialog');
+      const form = document.getElementById('admin-login-form');
+      const input = document.getElementById('admin-login-password');
+      document.getElementById('admin-login-message').textContent = invalid
+        ? '비밀번호가 맞지 않습니다. 다시 입력해주세요.'
+        : '관리자 비밀번호를 입력해주세요.';
+      input.value = '';
+      const cancel = () => {
+        dialog.close();
         reject(new Error('관리자 비밀번호가 필요합니다.'));
-        return;
-      }
-      sessionStorage.setItem(ADMIN_TOKEN_KEY, password);
-      resolve(password);
+      };
+      form.onsubmit = event => {
+        event.preventDefault();
+        const password = input.value;
+        if (!password) return;
+        dialog.close();
+        sessionStorage.setItem(ADMIN_TOKEN_KEY, password);
+        resolve(password);
+      };
+      dialog.oncancel = event => {
+        event.preventDefault();
+        cancel();
+      };
+      document.getElementById('admin-login-cancel').onclick = cancel;
+      dialog.showModal();
+      input.focus();
     }).finally(() => {
       adminTokenPrompt = null;
     });
@@ -1492,7 +1523,7 @@ function requestAdminToken() {
   return adminTokenPrompt;
 }
 
-async function api(path, opts = {}) {
+async function api(path, opts = {}, authAttempts = 0) {
   const headers = { ...(opts.headers || {}) };
   if (!(opts.body instanceof FormData)) {
     headers['Content-Type'] = 'application/json';
@@ -1508,8 +1539,9 @@ async function api(path, opts = {}) {
   });
   if (res.status === 401) {
     if (token) sessionStorage.removeItem(ADMIN_TOKEN_KEY);
-    await requestAdminToken();
-    return api(path, opts);
+    if (authAttempts >= 3) throw new Error('관리자 비밀번호를 확인해주세요.');
+    await requestAdminToken(authAttempts > 0);
+    return api(path, opts, authAttempts + 1);
   }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
@@ -2421,7 +2453,7 @@ async function saveBlobDownload(blob, filename, successMessage) {
   toast(successMessage + ' (보통 Mac 「다운로드」 폴더 — Finder에서 확인)');
 }
 
-async function downloadPhotosBackup() {
+async function downloadPhotosBackup(authAttempts = 0) {
   const btn = document.getElementById('storage-photos-backup-btn');
   const original = btn?.innerHTML || '사진 ZIP 백업';
   if (btn) {
@@ -2436,12 +2468,9 @@ async function downloadPhotosBackup() {
     const res = await fetch(API_BASE + '/admin/storage/backup/photos', { headers });
     if (res.status === 401) {
       sessionStorage.removeItem(ADMIN_TOKEN_KEY);
-      const password = prompt('관리자 비밀번호를 입력해주세요.');
-      if (password) {
-        sessionStorage.setItem(ADMIN_TOKEN_KEY, password);
-        return downloadPhotosBackup();
-      }
-      return;
+      if (authAttempts >= 3) throw new Error('관리자 비밀번호를 확인해주세요.');
+      await requestAdminToken(authAttempts > 0);
+      return downloadPhotosBackup(authAttempts + 1);
     }
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: res.statusText }));
@@ -2465,7 +2494,7 @@ async function downloadPhotosBackup() {
   }
 }
 
-async function downloadDbBackup() {
+async function downloadDbBackup(authAttempts = 0) {
   try {
     const token = sessionStorage.getItem(ADMIN_TOKEN_KEY);
     const headers = {};
@@ -2473,12 +2502,9 @@ async function downloadDbBackup() {
     const res = await fetch(API_BASE + '/admin/storage/backup/database', { headers });
     if (res.status === 401) {
       sessionStorage.removeItem(ADMIN_TOKEN_KEY);
-      const password = prompt('관리자 비밀번호를 입력해주세요.');
-      if (password) {
-        sessionStorage.setItem(ADMIN_TOKEN_KEY, password);
-        return downloadDbBackup();
-      }
-      return;
+      if (authAttempts >= 3) throw new Error('관리자 비밀번호를 확인해주세요.');
+      await requestAdminToken(authAttempts > 0);
+      return downloadDbBackup(authAttempts + 1);
     }
     if (!res.ok) throw new Error('다운로드 실패');
     const blob = await res.blob();
