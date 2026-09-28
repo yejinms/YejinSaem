@@ -475,19 +475,37 @@
 
     .parent-product-tabs {
       display: flex;
-      gap: 8px;
+      gap: 0;
       margin: 24px 0 20px;
-      padding: 8px 0;
+      padding: 0;
       position: sticky;
       top: 0;
       z-index: 2;
       background: var(--surface);
+      border-bottom: 1px solid var(--border);
     }
     .parent-product-tabs .tab-btn {
       flex: 1 1 0;
       white-space: normal;
       min-height: var(--touch-target);
       line-height: 1.35;
+      padding: 12px 8px;
+      border: 0;
+      border-bottom: 3px solid transparent;
+      border-radius: 0;
+      background: transparent;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+    .parent-product-tabs .tab-btn:hover:not(.active) {
+      color: var(--blue);
+      border-bottom-color: var(--blue-tint);
+    }
+    .parent-product-tabs .tab-btn.active {
+      background: transparent;
+      color: var(--blue-dark);
+      border-bottom-color: var(--blue);
+      font-weight: 700;
     }
     .parent-product-panel[hidden] { display: none; }
     .workbook-panel-hint {
