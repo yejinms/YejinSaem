@@ -18,6 +18,7 @@ from botocore.config import Config
 
 from database import SessionLocal, Submission
 from storage_maintenance import create_photos_backup_snapshot, get_storage_status
+from storage_slack_alert import maybe_alert_r2_capacity
 from upload_paths import get_submission_photo_paths, resolve_upload_file_path, upload_dir
 
 logger = logging.getLogger(__name__)
@@ -60,6 +61,11 @@ def request_archive_check() -> None:
 
 def _run_worker() -> None:
     try:
+        if os.getenv("SLACK_R2_WEBHOOK_URL"):
+            try:
+                maybe_alert_r2_capacity(r2_used_bytes(_r2_client()))
+            except Exception:
+                logger.exception("Could not check or send R2 capacity Slack alert")
         with SessionLocal() as db:
             result = archive_if_needed(db)
             if result:
@@ -261,6 +267,10 @@ def archive_if_needed(db) -> dict | None:
                     logger.exception("Could not remove incomplete R2 object %s", key)
             raise
         removed = cleanup_archived_sent_photos(db, entries)
+        try:
+            maybe_alert_r2_capacity(used + added)
+        except Exception:
+            logger.exception("Could not send R2 capacity Slack alert")
         return {"photos_key": photos_key, "database_key": database_key,
                 "photos_archived": count, "sent_photos_removed": removed,
                 "r2_used_bytes_after": used + added}

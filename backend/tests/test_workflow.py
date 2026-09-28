@@ -18,6 +18,7 @@ import routers.kakao as kakao_router
 from database import Base, Parent, SessionLocal, Submission, engine
 from main import app
 import storage_r2_archive
+import storage_slack_alert
 
 
 client = TestClient(app)
@@ -72,6 +73,29 @@ def test_health():
     res = client.get("/health")
     assert res.status_code == 200
     assert res.json()["status"] == "ok"
+
+
+def test_r2_slack_capacity_alert_once_then_rearms(monkeypatch, tmp_path):
+    sent = []
+
+    class Response:
+        text = "ok"
+
+        def raise_for_status(self):
+            pass
+
+    monkeypatch.setenv("SLACK_R2_WEBHOOK_URL", "https://hooks.slack.com/services/test")
+    monkeypatch.setattr(storage_slack_alert, "_state_path", lambda: tmp_path / "alert.json")
+    monkeypatch.setattr(storage_slack_alert.requests, "post",
+                        lambda url, json, timeout: sent.append(json["text"]) or Response())
+
+    assert storage_slack_alert.maybe_alert_r2_capacity(8_100_000_000)
+    assert not storage_slack_alert.maybe_alert_r2_capacity(8_200_000_000)
+    assert len(sent) == 1
+    assert "8.10GB" in sent[0]
+    assert not storage_slack_alert.maybe_alert_r2_capacity(7_900_000_000)
+    assert storage_slack_alert.maybe_alert_r2_capacity(8_000_000_000)
+    assert len(sent) == 2
 
 
 def test_parent_create_and_update_phone_number():
