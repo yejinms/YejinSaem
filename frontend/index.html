@@ -1198,14 +1198,15 @@
           <label>아이 나이</label>
           <input type="number" id="p-child-age" placeholder="예: 8" min="5" max="15" />
         </div>
-        <div class="form-group">
-          <label>수강 레벨 <small style="color:var(--text-muted); font-weight:400">(복수 선택 · 패키지는 3개 모두)</small></label>
+        <div class="form-group" id="p-weekly-level-group">
+          <label>매주 3단어 수강 레벨 <small style="color:var(--text-muted); font-weight:400">(복수 선택 · 패키지는 3개 모두)</small></label>
           <div class="level-selector" id="parent-level-btns">
             <button type="button" class="level-btn active" data-level="표현력" onclick="selectParentLevel(this)">표현력<br><small style="font-weight:400">7~8세</small></button>
             <button type="button" class="level-btn" data-level="초등기초" onclick="selectParentLevel(this)">초등기초<br><small style="font-weight:400">9~11세</small></button>
             <button type="button" class="level-btn" data-level="초등심화" onclick="selectParentLevel(this)">초등심화<br><small style="font-weight:400">11~13세</small></button>
           </div>
         </div>
+        <div id="p-workbook-purchases" style="display:none"></div>
         <button type="submit" class="btn btn-primary" id="parent-save-btn">저장</button>
       </form>
     </div>
@@ -2685,6 +2686,10 @@ function openAddParent() {
   currentParentId = null;
   document.getElementById('parent-modal-title').textContent = '학부모 개별 추가';
   document.getElementById('parent-form').reset();
+  document.getElementById('p-weekly-level-group').style.display = '';
+  document.getElementById('p-kakao-group').style.display = '';
+  document.getElementById('p-workbook-purchases').style.display = 'none';
+  document.getElementById('p-workbook-purchases').innerHTML = '';
   setParentLevelsUI(['표현력']);
   document.getElementById('p-kakao-id').value = '';
   openModal('parent-modal');
@@ -2748,10 +2753,32 @@ async function openEditParent(parentId) {
     document.getElementById('p-phone').value = p.phone_number || '';
     document.getElementById('p-child-age').value = p.child_age || '';
     setParentLevelsUI(p.levels || (p.level ? [p.level] : ['표현력']));
+    document.getElementById('p-weekly-level-group').style.display = p.weekly_words_enabled ? '' : 'none';
+    document.getElementById('p-kakao-group').style.display = p.weekly_words_enabled ? '' : 'none';
+    renderWorkbookPurchaseEditors(p.workbook_purchases || []);
   } catch (e) {
     toast('❌ 오류: ' + e.message, 4000);
     closeModal('parent-modal');
   }
+}
+
+function renderWorkbookPurchaseEditors(purchases) {
+  const container = document.getElementById('p-workbook-purchases');
+  container.style.display = purchases.length ? '' : 'none';
+  container.innerHTML = purchases.length ? `
+    <h3 style="margin:24px 0 8px">8주 완성 구매 내역</h3>
+    <p style="font-size:13px; color:var(--text-muted); line-height:1.5">구매 정보와 사용완료횟수를 수정할 수 있습니다. 남은횟수는 자동 계산됩니다. 온보딩·기한 알림 발송 여부는 시트에서 관리합니다.</p>
+    ${purchases.map(p => `<div class="workbook-edit-card" data-purchase-id="${p.id}" style="border:1px solid var(--border); border-radius:12px; padding:14px; margin:14px 0">
+      <strong>${escapeHtml(p.workbook_level)} · ${escapeHtml(p.pass_type)}</strong>
+      <div class="form-group"><label>구매자명</label><input data-field="buyer_name" value="${escapeHtml(p.buyer_name)}" required></div>
+      <div class="form-group"><label>교재단계</label><select data-field="workbook_level">${['가볍게','알차게','완벽하게'].map(level => `<option value="${level}" ${level === p.workbook_level ? 'selected' : ''}>${level}</option>`).join('')}</select></div>
+      <div class="form-group"><label>채널</label><input data-field="channel" value="${escapeHtml(p.channel)}" required></div>
+      <div class="form-group"><label>구매유형</label><select data-field="pass_type">${['교재만','8회권','56회권'].map(type => `<option value="${type}" ${type === p.pass_type ? 'selected' : ''}>${type}</option>`).join('')}</select></div>
+      <div class="form-group"><label>구매일</label><input data-field="purchase_date" type="date" value="${p.purchase_date}" required></div>
+      <div class="form-group"><label>이용기한</label><input data-field="expires_on" type="date" value="${p.expires_on}" required></div>
+      <div class="form-group"><label>사용완료횟수 <small>(현재 ${p.used_uses}/${p.total_uses}회 · 남은 ${p.remaining_uses}회)</small></label><input data-field="used_uses" type="number" min="0" value="${p.used_uses}" required></div>
+      <div class="form-group"><label>비고</label><input data-field="note" value="${escapeHtml(p.note || '')}"></div>
+    </div>`).join('')}` : '';
 }
 
 function selectParentLevel(btn) {
@@ -2764,8 +2791,9 @@ function selectParentLevel(btn) {
 
 async function saveParent(e) {
   e.preventDefault();
-  const levels = getSelectedParentLevels();
-  if (levels.length === 0) {
+  const weeklyEnabled = document.getElementById('p-weekly-level-group').style.display !== 'none';
+  const levels = weeklyEnabled ? getSelectedParentLevels() : [];
+  if (weeklyEnabled && levels.length === 0) {
     toast('수강 레벨을 1개 이상 선택해주세요.', 2500);
     return;
   }
@@ -2779,9 +2807,23 @@ async function saveParent(e) {
       phone_number: document.getElementById('p-phone').value.trim(),
       child_name: document.getElementById('p-child-name').value.trim(),
       child_age: parseInt(document.getElementById('p-child-age').value) || null,
-      levels,
-      level: levels[0],
     };
+    if (weeklyEnabled) {
+      payload.levels = levels;
+      payload.level = levels[0];
+    }
+    if (currentParentId) {
+      payload.workbook_purchases = [...document.querySelectorAll('#p-workbook-purchases .workbook-edit-card')].map(card => {
+        const field = name => card.querySelector(`[data-field="${name}"]`).value.trim();
+        return {
+          id: Number(card.dataset.purchaseId), buyer_name: field('buyer_name'),
+          workbook_level: field('workbook_level'), channel: field('channel'),
+          pass_type: field('pass_type'), purchase_date: field('purchase_date'),
+          expires_on: field('expires_on'), used_uses: Number(field('used_uses')),
+          note: field('note'),
+        };
+      });
+    }
     const kakaoId = document.getElementById('p-kakao-id').value.trim();
     if (kakaoId) payload.kakao_user_id = kakaoId;
     await api(currentParentId ? `/admin/parents/${currentParentId}` : '/admin/parents', {

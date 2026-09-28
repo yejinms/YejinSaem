@@ -6,7 +6,7 @@ import json
 import logging
 import os
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -48,7 +48,7 @@ from validation import (
     verify_admin,
 )
 from workbook_service import (
-    PRODUCT_WEEKLY, PRODUCT_WORKBOOK, WORKBOOK_LEVELS,
+    PRODUCT_WEEKLY, PRODUCT_WORKBOOK, WORKBOOK_LEVELS, PASS_LIMITS,
     active_purchase, import_purchase_rows, parse_purchase_rows,
     purchase_balance, purchase_used, record_use, rework_purchase, seoul_date,
 )
@@ -93,6 +93,18 @@ class ParentCreate(BaseModel):
     levels: Optional[list[str]] = None
 
 
+class WorkbookPurchaseEdit(BaseModel):
+    id: int
+    buyer_name: str
+    workbook_level: str
+    channel: str
+    pass_type: str
+    purchase_date: date
+    expires_on: date
+    used_uses: int
+    note: Optional[str] = None
+
+
 class ParentUpdate(BaseModel):
     phone_number: Optional[str] = None
     kakao_user_id: Optional[str] = None
@@ -100,6 +112,7 @@ class ParentUpdate(BaseModel):
     child_age: Optional[int] = None
     level: Optional[str] = None
     levels: Optional[list[str]] = None
+    workbook_purchases: Optional[list[WorkbookPurchaseEdit]] = None
 
 
 class ParentBulkImportRequest(BaseModel):
@@ -764,6 +777,36 @@ def update_parent(parent_id: int, body: ParentUpdate, db: Session = Depends(get_
     elif body.level is not None:
         validate_level(body.level)
         apply_parent_levels(parent, [body.level])
+    if body.workbook_purchases is not None:
+        seen_ids = set()
+        for edit in body.workbook_purchases:
+            if edit.id in seen_ids:
+                raise HTTPException(status_code=400, detail="같은 구매 내역이 중복되었습니다.")
+            seen_ids.add(edit.id)
+            purchase = db.query(WorkbookPurchase).filter_by(id=edit.id, parent_id=parent_id).first()
+            if not purchase:
+                raise HTTPException(status_code=404, detail="8주 완성 구매 내역을 찾을 수 없습니다.")
+            if not edit.buyer_name.strip() or not edit.channel.strip():
+                raise HTTPException(status_code=400, detail="구매자명과 채널을 입력해주세요.")
+            if edit.workbook_level not in WORKBOOK_LEVELS or edit.pass_type not in PASS_LIMITS:
+                raise HTTPException(status_code=400, detail="8주 완성 단계 또는 구매유형을 확인해주세요.")
+            if edit.expires_on < edit.purchase_date:
+                raise HTTPException(status_code=400, detail="이용기한은 구매일 이후여야 합니다.")
+            total_uses = PASS_LIMITS[edit.pass_type][0]
+            recorded_uses = len(purchase.uses)
+            if not recorded_uses <= edit.used_uses <= total_uses:
+                raise HTTPException(status_code=400, detail="사용완료횟수가 구매유형 또는 기록된 첨삭 이력과 맞지 않습니다.")
+            if recorded_uses and edit.workbook_level != purchase.workbook_level:
+                raise HTTPException(status_code=400, detail="첨삭 사용 이력이 있는 구매의 교재단계는 변경할 수 없습니다.")
+            purchase.buyer_name = edit.buyer_name.strip()
+            purchase.workbook_level = edit.workbook_level
+            purchase.channel = edit.channel.strip()
+            purchase.pass_type = edit.pass_type
+            purchase.purchase_date = edit.purchase_date
+            purchase.expires_on = edit.expires_on
+            purchase.total_uses = total_uses
+            purchase.opening_used = edit.used_uses - recorded_uses
+            purchase.note = (edit.note or "").strip() or None
 
     db.commit()
     db.refresh(parent)

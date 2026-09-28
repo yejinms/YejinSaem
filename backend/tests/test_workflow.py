@@ -982,6 +982,38 @@ def test_workbook_preview_accepts_markdown_row_with_extra_empty_columns():
     assert result.json()["rows"][0]["total_uses"] == 1
 
 
+def test_parent_edit_updates_workbook_purchase_without_losing_weekly_data():
+    parent_id = create_parent()
+    db = SessionLocal()
+    purchase = WorkbookPurchase(
+        parent_id=parent_id, buyer_name="구매자", workbook_level="가볍게",
+        channel="카톡", pass_type="8회권", purchase_date=seoul_date(),
+        expires_on=seoul_date() + timedelta(days=179), total_uses=8, opening_used=0,
+    )
+    db.add(purchase)
+    db.commit()
+    purchase_id = purchase.id
+    db.close()
+
+    result = client.put(f"/admin/parents/{parent_id}", json={
+        "workbook_purchases": [{
+            "id": purchase_id, "buyer_name": "수정 구매자", "workbook_level": "알차게",
+            "channel": "네이버", "pass_type": "8회권", "purchase_date": seoul_date().isoformat(),
+            "expires_on": (seoul_date() + timedelta(days=179)).isoformat(),
+            "used_uses": 2, "note": "확인 완료",
+        }],
+    })
+    assert result.status_code == 200
+    parent = result.json()
+    assert parent["level"] == "표현력"
+    assert parent["weekly_words_enabled"] is True
+    edited = parent["workbook_purchases"][0]
+    assert edited["buyer_name"] == "수정 구매자"
+    assert edited["workbook_level"] == "알차게"
+    assert edited["remaining_uses"] == 6
+    assert edited["note"] == "확인 완료"
+
+
 def test_workbook_upload_prompt_and_manual_send_deduct_once(monkeypatch):
     parent_id = create_parent()
     db = SessionLocal()
