@@ -438,6 +438,7 @@
     input[type="number"],
     input[type="tel"],
     input[type="search"],
+    input[type="date"],
     select,
     textarea {
       width: 100%;
@@ -471,6 +472,68 @@
     }
 
     .form-group { margin-bottom: 18px; }
+
+    .parent-product-tabs {
+      display: flex;
+      gap: 8px;
+      margin: 24px 0 20px;
+      padding: 8px 0;
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: var(--surface);
+    }
+    .parent-product-tabs .tab-btn {
+      flex: 1 1 0;
+      white-space: normal;
+      min-height: var(--touch-target);
+      line-height: 1.35;
+    }
+    .parent-product-panel[hidden] { display: none; }
+    .workbook-panel-hint {
+      color: var(--text-muted);
+      font-size: var(--font-secondary);
+      line-height: 1.5;
+      margin-bottom: 16px;
+    }
+    .workbook-edit-card {
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-card);
+      padding: 18px;
+      margin-bottom: 14px;
+      background: var(--white);
+    }
+    .workbook-edit-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding-bottom: 14px;
+      margin-bottom: 18px;
+      border-bottom: 1px solid var(--border);
+    }
+    .workbook-edit-title { font-size: var(--font-base); font-weight: 700; }
+    .workbook-balance-badge {
+      color: var(--blue-dark);
+      background: var(--blue-tint);
+      border-radius: var(--radius-pill);
+      padding: 5px 10px;
+      font-size: var(--font-caption);
+      font-weight: 700;
+    }
+    .workbook-edit-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px 14px;
+    }
+    .workbook-edit-grid .form-group { margin: 0; min-width: 0; }
+    .workbook-edit-grid .form-group.full { grid-column: 1 / -1; }
+    .workbook-edit-grid label { margin-bottom: 8px; }
+    @media (max-width: 480px) {
+      .workbook-edit-grid { grid-template-columns: 1fr; }
+      .workbook-edit-grid .form-group.full { grid-column: auto; }
+    }
 
     /* 학부모 검색·선택 (hero search 크기) */
     .parent-picker {
@@ -1176,37 +1239,44 @@
           <label>전화번호 <small>(학부모 식별 · 친구톡 발송)</small></label>
           <input type="tel" id="p-phone" placeholder="예: 01012345678 또는 +1 9992229333" required />
           <small style="color:var(--text-muted); display:block; margin-top:8px; font-size:14px; font-weight:400; line-height:1.5;">
-            친구톡 발송용입니다. 해외 번호는 국가번호 포함(+1 등)으로 입력하세요. 채팅에서 번호를 묻지 않습니다.
+            고객 연결과 친구톡 발송에 사용합니다. 해외 번호는 국가번호를 포함하세요.
           </small>
         </div>
         <div class="form-group" id="p-kakao-group">
           <label>카카오 채널 연결 ID <small>(botUserKey)</small></label>
           <input type="text" id="p-kakao-id" placeholder="채널 대화 후 Railway 로그에서 복사" />
           <small style="color:var(--text-muted); display:block; margin-top:8px; font-size:14px; font-weight:400; line-height:1.5;">
-            학부모가 채널에서 보낸 뒤 Deploy Logs의 <code>bot_user_key=...</code> 값을 붙여 넣으면 사진이 이 학부모로 들어옵니다.
+            기존 카카오 채널 연동이 필요한 경우에만 입력하세요.
           </small>
         </div>
         <div class="form-group">
           <label>내부 관리명</label>
           <input type="text" id="p-child-name" placeholder="예: 민준A · 구매자와 다를 수 있음" required />
           <small style="color:var(--text-muted); display:block; margin-top:8px; font-size:14px; font-weight:400; line-height:1.5;">
-            선생님 화면에서만 씁니다. <strong>카카오 채팅·친구톡에는 이름이 절대 나가지 않습니다.</strong>
-            (아이·학부모·구매자 실명과 달라도 됩니다)
+            관리 화면에서만 사용하며 고객 메시지에는 표시하지 않습니다.
           </small>
         </div>
         <div class="form-group">
           <label>아이 나이</label>
           <input type="number" id="p-child-age" placeholder="예: 8" min="5" max="15" />
         </div>
-        <div class="form-group" id="p-weekly-level-group">
-          <label>매주 3단어 수강 레벨 <small style="color:var(--text-muted); font-weight:400">(복수 선택 · 패키지는 3개 모두)</small></label>
-          <div class="level-selector" id="parent-level-btns">
-            <button type="button" class="level-btn active" data-level="표현력" onclick="selectParentLevel(this)">표현력<br><small style="font-weight:400">7~8세</small></button>
-            <button type="button" class="level-btn" data-level="초등기초" onclick="selectParentLevel(this)">초등기초<br><small style="font-weight:400">9~11세</small></button>
-            <button type="button" class="level-btn" data-level="초등심화" onclick="selectParentLevel(this)">초등심화<br><small style="font-weight:400">11~13세</small></button>
+        <div id="parent-product-tabs" class="parent-product-tabs" role="tablist" aria-label="교재별 정보">
+          <button type="button" id="parent-weekly-tab" class="tab-btn" role="tab" aria-controls="parent-weekly-panel" onclick="selectParentProductTab('weekly')">매주 3단어 수강 레벨</button>
+          <button type="button" id="parent-workbook-tab" class="tab-btn" role="tab" aria-controls="parent-workbook-panel" onclick="selectParentProductTab('workbook')">8주 완성 구매 내역</button>
+        </div>
+        <div id="parent-weekly-panel" class="parent-product-panel" role="tabpanel" aria-labelledby="parent-weekly-tab">
+          <div class="form-group" id="p-weekly-level-group">
+            <label>수강 레벨 <small>(복수 선택 · 패키지는 3개 모두)</small></label>
+            <div class="level-selector" id="parent-level-btns">
+              <button type="button" class="level-btn active" data-level="표현력" onclick="selectParentLevel(this)">표현력<br><small style="font-weight:400">7~8세</small></button>
+              <button type="button" class="level-btn" data-level="초등기초" onclick="selectParentLevel(this)">초등기초<br><small style="font-weight:400">9~11세</small></button>
+              <button type="button" class="level-btn" data-level="초등심화" onclick="selectParentLevel(this)">초등심화<br><small style="font-weight:400">11~13세</small></button>
+            </div>
           </div>
         </div>
-        <div id="p-workbook-purchases" style="display:none"></div>
+        <div id="parent-workbook-panel" class="parent-product-panel" role="tabpanel" aria-labelledby="parent-workbook-tab" hidden>
+          <div id="p-workbook-purchases"></div>
+        </div>
         <button type="submit" class="btn btn-primary" id="parent-save-btn">저장</button>
       </form>
     </div>
@@ -2686,10 +2756,9 @@ function openAddParent() {
   currentParentId = null;
   document.getElementById('parent-modal-title').textContent = '학부모 개별 추가';
   document.getElementById('parent-form').reset();
-  document.getElementById('p-weekly-level-group').style.display = '';
   document.getElementById('p-kakao-group').style.display = '';
-  document.getElementById('p-workbook-purchases').style.display = 'none';
   document.getElementById('p-workbook-purchases').innerHTML = '';
+  setParentProductTabs(true, false);
   setParentLevelsUI(['표현력']);
   document.getElementById('p-kakao-id').value = '';
   openModal('parent-modal');
@@ -2743,6 +2812,8 @@ async function openEditParent(parentId) {
   currentParentId = parentId;
   document.getElementById('parent-modal-title').textContent = '학부모 수정';
   document.getElementById('parent-form').reset();
+  document.getElementById('p-workbook-purchases').innerHTML = '';
+  setParentProductTabs(true, false);
   openModal('parent-modal');
 
   try {
@@ -2753,31 +2824,54 @@ async function openEditParent(parentId) {
     document.getElementById('p-phone').value = p.phone_number || '';
     document.getElementById('p-child-age').value = p.child_age || '';
     setParentLevelsUI(p.levels || (p.level ? [p.level] : ['표현력']));
-    document.getElementById('p-weekly-level-group').style.display = p.weekly_words_enabled ? '' : 'none';
     document.getElementById('p-kakao-group').style.display = p.weekly_words_enabled ? '' : 'none';
     renderWorkbookPurchaseEditors(p.workbook_purchases || []);
+    setParentProductTabs(p.weekly_words_enabled, (p.workbook_purchases || []).length > 0);
   } catch (e) {
     toast('❌ 오류: ' + e.message, 4000);
     closeModal('parent-modal');
   }
 }
 
+function setParentProductTabs(weeklyEnabled, workbookEnabled) {
+  document.getElementById('p-weekly-level-group').style.display = weeklyEnabled ? '' : 'none';
+  document.getElementById('parent-product-tabs').style.display = weeklyEnabled && workbookEnabled ? '' : 'none';
+  document.getElementById('parent-weekly-tab').hidden = !weeklyEnabled;
+  document.getElementById('parent-workbook-tab').hidden = !workbookEnabled;
+  selectParentProductTab(weeklyEnabled ? 'weekly' : 'workbook');
+}
+
+function selectParentProductTab(product) {
+  for (const name of ['weekly', 'workbook']) {
+    const selected = name === product;
+    const tab = document.getElementById(`parent-${name}-tab`);
+    const panel = document.getElementById(`parent-${name}-panel`);
+    tab.classList.toggle('active', selected);
+    tab.setAttribute('aria-selected', String(selected));
+    tab.tabIndex = selected ? 0 : -1;
+    panel.hidden = !selected;
+  }
+}
+
 function renderWorkbookPurchaseEditors(purchases) {
   const container = document.getElementById('p-workbook-purchases');
-  container.style.display = purchases.length ? '' : 'none';
   container.innerHTML = purchases.length ? `
-    <h3 style="margin:24px 0 8px">8주 완성 구매 내역</h3>
-    <p style="font-size:13px; color:var(--text-muted); line-height:1.5">구매 정보와 사용완료횟수를 수정할 수 있습니다. 남은횟수는 자동 계산됩니다. 온보딩·기한 알림 발송 여부는 시트에서 관리합니다.</p>
-    ${purchases.map(p => `<div class="workbook-edit-card" data-purchase-id="${p.id}" style="border:1px solid var(--border); border-radius:12px; padding:14px; margin:14px 0">
-      <strong>${escapeHtml(p.workbook_level)} · ${escapeHtml(p.pass_type)}</strong>
-      <div class="form-group"><label>구매자명</label><input data-field="buyer_name" value="${escapeHtml(p.buyer_name)}" required></div>
-      <div class="form-group"><label>교재단계</label><select data-field="workbook_level">${['가볍게','알차게','완벽하게'].map(level => `<option value="${level}" ${level === p.workbook_level ? 'selected' : ''}>${level}</option>`).join('')}</select></div>
-      <div class="form-group"><label>채널</label><input data-field="channel" value="${escapeHtml(p.channel)}" required></div>
-      <div class="form-group"><label>구매유형</label><select data-field="pass_type">${['교재만','8회권','56회권'].map(type => `<option value="${type}" ${type === p.pass_type ? 'selected' : ''}>${type}</option>`).join('')}</select></div>
-      <div class="form-group"><label>구매일</label><input data-field="purchase_date" type="date" value="${p.purchase_date}" required></div>
-      <div class="form-group"><label>이용기한</label><input data-field="expires_on" type="date" value="${p.expires_on}" required></div>
-      <div class="form-group"><label>사용완료횟수 <small>(현재 ${p.used_uses}/${p.total_uses}회 · 남은 ${p.remaining_uses}회)</small></label><input data-field="used_uses" type="number" min="0" value="${p.used_uses}" required></div>
-      <div class="form-group"><label>비고</label><input data-field="note" value="${escapeHtml(p.note || '')}"></div>
+    <p class="workbook-panel-hint">구매 정보를 수정할 수 있습니다. 남은 횟수는 자동 계산되며, 온보딩·기한 알림은 시트에서 관리합니다.</p>
+    ${purchases.map((p, index) => `<div class="workbook-edit-card" data-purchase-id="${p.id}">
+      <div class="workbook-edit-header">
+        <span class="workbook-edit-title">구매 ${index + 1} · ${escapeHtml(p.workbook_level)} · ${escapeHtml(p.pass_type)}</span>
+        <span class="workbook-balance-badge">남은 ${p.remaining_uses}/${p.total_uses}회</span>
+      </div>
+      <div class="workbook-edit-grid">
+        <div class="form-group"><label>구매자명</label><input type="text" data-field="buyer_name" value="${escapeHtml(p.buyer_name)}" required></div>
+        <div class="form-group"><label>채널</label><input type="text" data-field="channel" value="${escapeHtml(p.channel)}" required></div>
+        <div class="form-group"><label>교재단계</label><select data-field="workbook_level">${['가볍게','알차게','완벽하게'].map(level => `<option value="${level}" ${level === p.workbook_level ? 'selected' : ''}>${level}</option>`).join('')}</select></div>
+        <div class="form-group"><label>구매유형</label><select data-field="pass_type">${['교재만','8회권','56회권'].map(type => `<option value="${type}" ${type === p.pass_type ? 'selected' : ''}>${type}</option>`).join('')}</select></div>
+        <div class="form-group"><label>구매일</label><input data-field="purchase_date" type="date" value="${p.purchase_date}" required></div>
+        <div class="form-group"><label>이용기한</label><input data-field="expires_on" type="date" value="${p.expires_on}" required></div>
+        <div class="form-group"><label>사용완료횟수 <small>(현재 ${p.used_uses}회)</small></label><input data-field="used_uses" type="number" min="0" value="${p.used_uses}" required></div>
+        <div class="form-group"><label>비고</label><input type="text" data-field="note" value="${escapeHtml(p.note || '')}"></div>
+      </div>
     </div>`).join('')}` : '';
 }
 
