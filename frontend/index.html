@@ -1255,8 +1255,8 @@
       <button class="modal-close" type="button" onclick="closeModal('workbook-import-modal')">✕</button>
     </div>
     <div class="modal-body">
-      <p style="font-size:14px; line-height:1.5">시트의 고객 행 15개 열을 그대로 붙여넣으세요. 메시지는 발송되지 않습니다.</p>
-      <textarea id="workbook-import-text" class="feedback-area" rows="5" placeholder="구매자명&#9;연락처&#9;교재단계&#9;채널&#9;구매유형&#9;구매일 ..."></textarea>
+      <p style="font-size:14px; line-height:1.5">고객 행을 시트나 Markdown 표에서 그대로 붙여넣으세요. 표의 구분선과 뒤쪽 빈 열은 무시합니다. 메시지는 발송되지 않습니다.</p>
+      <textarea id="workbook-import-text" class="feedback-area" rows="5" placeholder="| 구매자명 | 연락처 | 교재단계 | 채널 | 구매유형 | 구매일 | ... |"></textarea>
       <button type="button" class="btn btn-outline" onclick="previewWorkbookImport()">먼저 확인</button>
       <button type="button" class="btn btn-primary" id="workbook-import-save" onclick="saveWorkbookImport()" disabled>구매 내역 저장</button>
       <pre id="workbook-import-result" class="bulk-import-result" style="margin-top:12px"></pre>

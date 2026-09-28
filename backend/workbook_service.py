@@ -34,16 +34,36 @@ def parse_bool(value: str) -> bool:
     raise ValueError(f"TRUE/FALSE 값을 확인해주세요: {value}")
 
 
+def split_purchase_line(line: str) -> list[str] | None:
+    """Accept a spreadsheet row or a Markdown table row with empty tail cells."""
+    stripped = line.strip()
+    if stripped.startswith("```"):
+        return None
+    if stripped.startswith("|"):
+        values = [item.strip() for item in stripped.strip("|").split("|")]
+        if values and all(value and set(value) <= {"-", ":"} for value in values):
+            return None
+    else:
+        values = [item.strip() for item in line.split("\t")]
+    while len(values) > 15 and not values[-1]:
+        values.pop()
+    if len(values) == 14:
+        values.append("")  # 비고 열을 생략한 행
+    return values
+
+
 def parse_purchase_rows(raw_text: str) -> tuple[list[dict], list[dict]]:
     rows, errors = [], []
     for line_number, line in enumerate(raw_text.splitlines(), 1):
         if not line.strip():
             continue
-        values = [item.strip() for item in line.split("\t")]
+        values = split_purchase_line(line)
+        if values is None:
+            continue
         if values[0].replace("*", "").strip() == "구매자명":
             continue
         if len(values) != 15:
-            errors.append({"line": line_number, "message": "15개 열을 탭으로 구분해 붙여넣어 주세요."})
+            errors.append({"line": line_number, "message": "고객정보 15개 열을 확인해주세요. 탭 행과 Markdown 표를 붙여넣을 수 있습니다."})
             continue
         try:
             (name, phone_raw, level, channel, pass_type, bought_raw,

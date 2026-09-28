@@ -971,6 +971,17 @@ def test_workbook_import_links_existing_parent_without_changing_weekly_level():
     assert parent["workbook_purchases"][0]["remaining_uses"] == 6
 
 
+def test_workbook_preview_accepts_markdown_row_with_extra_empty_columns():
+    pasted = """| 김예진 | 010-9166-2692 | 가볍게 | 카톡 | 교재만 | 2026. 9. 22 | TRUE | TRUE | 1 | 0 | 1 | 2026. 11. 20 | FALSE | FALSE |   |   |   |   |
+| --- | ------------- | --- | -- | --- | ----------: | :--: | :--: | -: | -: | -: | -----------: | :---: | :---: | - | - | - | - |"""
+    result = client.post("/admin/workbook-purchases/preview", json={"text": pasted})
+    assert result.status_code == 200
+    assert result.json()["errors"] == []
+    assert len(result.json()["rows"]) == 1
+    assert result.json()["rows"][0]["expires_on"] == "2026-11-20"
+    assert result.json()["rows"][0]["total_uses"] == 1
+
+
 def test_workbook_upload_prompt_and_manual_send_deduct_once(monkeypatch):
     parent_id = create_parent()
     db = SessionLocal()
