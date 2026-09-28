@@ -3,14 +3,15 @@ admin.py - Admin REST API for managing submissions and parents
 """
 
 import json
+import hmac
 import logging
 import os
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Header, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -18,7 +19,7 @@ from sqlalchemy.orm import Session
 UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", "./uploads"))
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
-from database import Parent, Submission, get_db
+from database import Parent, Submission, WorkbookPurchase, WorkbookUse, get_db
 from datetime_utils import to_utc_iso
 from levels_utils import apply_parent_levels, parent_levels_for_api, resolve_levels_input
 from mission_history import get_last_selected_mission
@@ -47,10 +48,16 @@ from validation import (
     validate_levels,
     verify_admin,
 )
+from workbook_service import (
+    PRODUCT_WEEKLY, PRODUCT_WORKBOOK, WORKBOOK_LEVELS, PASS_LIMITS,
+    active_purchase, import_purchase_rows, parse_purchase_rows,
+    purchase_balance, purchase_used, record_use, rework_purchase, seoul_date,
+)
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(verify_admin)])
+sheet_router = APIRouter(prefix="/workbook-sheet", tags=["workbook-sheet"])
 
 MAX_SUBMISSION_IMAGES = 10
 
@@ -70,8 +77,8 @@ def admin_config_status():
 # ---------- Pydantic Schemas ----------
 
 class GenerateFeedbackRequest(BaseModel):
-    level: str
-    stage: int
+    level: Optional[str] = None
+    stage: Optional[int] = None
     extra_instruction: Optional[str] = ""
 
 
@@ -88,6 +95,18 @@ class ParentCreate(BaseModel):
     levels: Optional[list[str]] = None
 
 
+class WorkbookPurchaseEdit(BaseModel):
+    id: int
+    buyer_name: str
+    workbook_level: str
+    channel: str
+    pass_type: str
+    purchase_date: date
+    expires_on: date
+    used_uses: int
+    note: Optional[str] = None
+
+
 class ParentUpdate(BaseModel):
     phone_number: Optional[str] = None
     kakao_user_id: Optional[str] = None
@@ -95,11 +114,16 @@ class ParentUpdate(BaseModel):
     child_age: Optional[int] = None
     level: Optional[str] = None
     levels: Optional[list[str]] = None
+    workbook_purchases: Optional[list[WorkbookPurchaseEdit]] = None
 
 
 class ParentBulkImportRequest(BaseModel):
     text: str
     channel_filter: Optional[str] = None
+
+
+class WorkbookImportRequest(BaseModel):
+    text: str
 
 
 class StorageCleanupRequest(BaseModel):
@@ -116,9 +140,11 @@ def serialize_parent(parent: Parent) -> dict:
         "phone_number": parent.phone_number,
         "child_name": parent.child_name,
         "child_age": parent.child_age,
+        "weekly_words_enabled": parent.weekly_words_enabled,
         "level": parent.level,
         "levels": levels,
         "created_at": to_utc_iso(parent.created_at),
+        "workbook_purchases": [purchase_balance(p) for p in parent.workbook_purchases],
     }
 
 
@@ -152,6 +178,7 @@ def serialize_submission(
             "child_age": parent.child_age,
             "level": parent.level,
             "levels": parent_levels_for_api(parent),
+            "workbook_purchases": [purchase_balance(p) for p in parent.workbook_purchases],
         }
         if include_parent_created_at:
             parent_payload["created_at"] = to_utc_iso(parent.created_at)
@@ -160,6 +187,9 @@ def serialize_submission(
     payload = {
         "id": submission.id,
         "status": submission.status,
+        "product_type": submission.product_type or PRODUCT_WEEKLY,
+        "workbook_level": submission.workbook_level,
+        "rework_of_submission_id": submission.rework_of_submission_id,
         "photo_path": photo_paths[0] if photo_paths else None,
         "photo_paths": photo_paths,
         "level": submission.level,
@@ -186,6 +216,19 @@ def send_submission_feedback(submission: Submission, feedback_text: str, db: Ses
             status_code=400,
             detail="No feedback text available. Generate feedback first.",
         )
+    if submission.status == "sent":
+        raise HTTPException(status_code=409, detail="이미 전송 완료된 피드백입니다.")
+    if submission.product_type == PRODUCT_WORKBOOK:
+        received_on = seoul_date(submission.created_at)
+        available = (
+            rework_purchase(db, parent.id, submission.workbook_level,
+                            submission.rework_of_submission_id, received_on)
+            if submission.rework_of_submission_id else
+            active_purchase(db, parent.id, on_date=received_on,
+                            workbook_level=submission.workbook_level)
+        )
+        if not available:
+            raise HTTPException(status_code=409, detail="사용 가능한 8주 완성 첨삭권이 없습니다.")
 
     if not parent.phone_number:
         raise HTTPException(
@@ -205,6 +248,8 @@ def send_submission_feedback(submission: Submission, feedback_text: str, db: Ses
 
     submission.feedback_draft = final_feedback
     if result.get("success"):
+        if submission.product_type == PRODUCT_WORKBOOK and not submission.rework_of_submission_id:
+            record_use(db, submission)
         submission.status = "sent"
         db.commit()
         return {
@@ -228,6 +273,9 @@ def send_submission_feedback(submission: Submission, feedback_text: str, db: Ses
 @router.post("/submissions/upload", status_code=status.HTTP_201_CREATED)
 async def upload_submission(
     parent_id: int,
+    product_type: str = PRODUCT_WEEKLY,
+    workbook_level: Optional[str] = None,
+    rework_of_submission_id: Optional[int] = None,
     photos: Optional[list[UploadFile]] = File(default=None),
     photo: Optional[UploadFile] = File(default=None),
     db: Session = Depends(get_db),
@@ -236,6 +284,23 @@ async def upload_submission(
     parent = db.query(Parent).filter(Parent.id == parent_id).first()
     if not parent:
         raise HTTPException(status_code=404, detail="학부모를 찾을 수 없습니다")
+    if product_type not in {PRODUCT_WEEKLY, PRODUCT_WORKBOOK}:
+        raise HTTPException(status_code=400, detail="교재를 선택해주세요.")
+    if product_type == PRODUCT_WEEKLY and not parent.weekly_words_enabled:
+        raise HTTPException(status_code=400, detail="매주 3단어 이용 고객이 아닙니다.")
+    purchase = None
+    if product_type == PRODUCT_WORKBOOK:
+        if workbook_level not in WORKBOOK_LEVELS:
+            raise HTTPException(status_code=400, detail="8주 완성 교재단계를 선택해주세요.")
+        purchase = (
+            rework_purchase(db, parent_id, workbook_level, rework_of_submission_id, seoul_date())
+            if rework_of_submission_id else
+            active_purchase(db, parent_id, workbook_level=workbook_level)
+        )
+        if not purchase:
+            raise HTTPException(status_code=409, detail="사용 가능한 8주 완성 첨삭권이 없습니다.")
+    elif rework_of_submission_id:
+        raise HTTPException(status_code=400, detail="매주 3단어에는 8주 완성 수정본을 연결할 수 없습니다.")
 
     upload_files = list(photos or [])
     if photo is not None:
@@ -263,6 +328,9 @@ async def upload_submission(
 
     submission = Submission(
         parent_id=parent_id,
+        product_type=product_type,
+        workbook_level=purchase.workbook_level if purchase else None,
+        rework_of_submission_id=rework_of_submission_id,
         photo_path=serialize_photo_paths(photo_paths),
         level=parent.level,
         status="pending",
@@ -302,7 +370,7 @@ def get_submission(submission_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Submission not found")
 
     last_mission = None
-    if s.parent_id:
+    if s.parent_id and s.product_type != PRODUCT_WORKBOOK:
         last_mission = get_last_selected_mission(db, s.parent_id, s.id)
     return serialize_submission(
         s,
@@ -330,21 +398,23 @@ def generate_submission_feedback(
     if not parent:
         raise HTTPException(status_code=400, detail="Submission has no associated parent")
 
-    validate_level(body.level)
-    if not (1 <= body.stage <= 10):
-        raise HTTPException(status_code=400, detail="Stage must be between 1 and 10")
+    if s.product_type == PRODUCT_WORKBOOK:
+        if s.workbook_level not in WORKBOOK_LEVELS:
+            raise HTTPException(status_code=400, detail="8주 완성 교재단계가 없습니다.")
+    else:
+        validate_level(body.level)
+        if body.stage is None or not (1 <= body.stage <= 10):
+            raise HTTPException(status_code=400, detail="Stage must be between 1 and 10")
 
-    recent_submissions = (
-        db.query(Submission)
-        .filter(
-            Submission.parent_id == parent.id,
-            Submission.feedback_draft.isnot(None),
-            Submission.id != submission_id,
-        )
-        .order_by(Submission.created_at.desc())
-        .limit(3)
-        .all()
+    previous_query = db.query(Submission).filter(
+        Submission.parent_id == parent.id,
+        Submission.product_type == (s.product_type or PRODUCT_WEEKLY),
+        Submission.feedback_draft.isnot(None),
+        Submission.id != submission_id,
     )
+    if s.product_type == PRODUCT_WORKBOOK:
+        previous_query = previous_query.filter(Submission.workbook_level == s.workbook_level)
+    recent_submissions = previous_query.order_by(Submission.created_at.desc()).limit(3).all()
     previous_feedbacks = [rs.feedback_draft for rs in recent_submissions if rs.feedback_draft]
 
     try:
@@ -355,6 +425,7 @@ def generate_submission_feedback(
                 stage_num=body.stage,
                 extra_instruction=body.extra_instruction or "",
                 previous_feedbacks=previous_feedbacks,
+                workbook_level=s.workbook_level if s.product_type == PRODUCT_WORKBOOK else None,
             ),
             parent,
         )
@@ -367,8 +438,9 @@ def generate_submission_feedback(
         raise HTTPException(status_code=500, detail=f"Failed to generate feedback: {str(e)}")
 
     # Update submission
-    s.level = body.level
-    s.stage = body.stage
+    if s.product_type != PRODUCT_WORKBOOK:
+        s.level = body.level
+        s.stage = body.stage
     s.extra_instruction = body.extra_instruction or s.extra_instruction
     s.feedback_draft = feedback_text
     s.status = "generated"
@@ -381,6 +453,7 @@ def generate_submission_feedback(
         "feedback_draft": s.feedback_draft,
         "level": s.level,
         "stage": s.stage,
+        "product_type": s.product_type,
     }
 
 
@@ -390,6 +463,8 @@ def delete_submission(submission_id: int, db: Session = Depends(get_db)):
     submission = db.query(Submission).filter(Submission.id == submission_id).first()
     if not submission:
         raise HTTPException(status_code=404, detail="Submission not found")
+    if db.query(WorkbookUse).filter_by(submission_id=submission_id).first():
+        raise HTTPException(status_code=409, detail="첨삭권 사용 이력이 있어 제출을 삭제할 수 없습니다.")
 
     delete_submission_files(submission)
     db.delete(submission)
@@ -446,6 +521,12 @@ def mark_submission_sent_manually(
         raise HTTPException(status_code=400, detail="피드백 내용을 입력해주세요.")
 
     s.feedback_draft = final_feedback
+    if s.product_type == PRODUCT_WORKBOOK and s.rework_of_submission_id and not rework_purchase(
+        db, s.parent_id, s.workbook_level, s.rework_of_submission_id, seoul_date(s.created_at)
+    ):
+        raise HTTPException(status_code=409, detail="연결된 수정본의 원본 첨삭을 확인할 수 없습니다.")
+    if s.product_type == PRODUCT_WORKBOOK and not s.rework_of_submission_id:
+        record_use(db, s)
     s.status = "sent"
     db.commit()
     db.refresh(s)
@@ -470,10 +551,12 @@ def list_parents(db: Session = Depends(get_db)):
             "phone_number": p.phone_number,
             "child_name": p.child_name,
             "child_age": p.child_age,
+            "weekly_words_enabled": p.weekly_words_enabled,
             "level": p.level,
             "levels": parent_levels_for_api(p),
             "created_at": to_utc_iso(p.created_at),
             "submission_count": len(p.submissions),
+            "workbook_purchases": [purchase_balance(purchase) for purchase in p.workbook_purchases],
         }
         for p in parents
     ]
@@ -490,6 +573,7 @@ def create_or_update_parent(body: ParentCreate, db: Session = Depends(get_db)):
     existing = db.query(Parent).filter(Parent.phone_number == phone_number).first()
 
     if existing:
+        existing.weekly_words_enabled = True
         existing.child_name = body.child_name
         existing.child_age = body.child_age
         existing.phone_number = phone_number
@@ -539,6 +623,61 @@ def bulk_import_parents(body: ParentBulkImportRequest, db: Session = Depends(get
             detail={"message": "가져올 수 있는 행이 없습니다.", "errors": result["errors"]},
         )
     return result
+
+
+@router.post("/workbook-purchases/preview")
+def preview_workbook_purchases(body: WorkbookImportRequest):
+    rows, errors = parse_purchase_rows(body.text)
+    return {"rows": rows, "errors": errors}
+
+
+@router.post("/workbook-purchases/import")
+def import_workbook_purchases(body: WorkbookImportRequest, db: Session = Depends(get_db)):
+    result = import_purchase_rows(db, body.text)
+    if result["errors"]:
+        raise HTTPException(status_code=400, detail={"message": "입력한 행을 확인해주세요.", "errors": result["errors"]})
+    return result
+
+
+@router.get("/workbook-purchases")
+def list_workbook_purchases(db: Session = Depends(get_db)):
+    return [purchase_balance(p) for p in db.query(WorkbookPurchase).order_by(WorkbookPurchase.id.desc()).all()]
+
+
+@router.get("/workbook-purchases/sheet-balances")
+def workbook_sheet_balances(db: Session = Depends(get_db)):
+    """Read-only balance feed for the existing onboarding/expiry Google Sheet."""
+    return list_workbook_sheet_balances(db)
+
+
+def verify_sheet_sync_token(authorization: str | None = Header(default=None)) -> None:
+    token = os.getenv("WORKBOOK_SHEET_SYNC_TOKEN", "").strip()
+    if not token:
+        raise HTTPException(status_code=503, detail="시트 동기화가 설정되지 않았습니다.")
+    provided = (authorization or "").removeprefix("Bearer ").strip()
+    if not authorization or not authorization.startswith("Bearer ") or not hmac.compare_digest(provided, token):
+        raise HTTPException(status_code=401, detail="시트 동기화 인증에 실패했습니다.")
+
+
+@sheet_router.get("/balances", dependencies=[Depends(verify_sheet_sync_token)])
+def read_workbook_sheet_balances(db: Session = Depends(get_db)):
+    """Narrow read-only feed; the Sheet script never receives the admin password."""
+    return list_workbook_sheet_balances(db)
+
+
+def list_workbook_sheet_balances(db: Session) -> list[dict]:
+    rows = db.query(WorkbookPurchase, Parent.phone_number).join(
+        Parent, Parent.id == WorkbookPurchase.parent_id
+    ).all()
+    return [{
+        "purchase_id": purchase.id,
+        "phone_number": phone,
+        "workbook_level": purchase.workbook_level,
+        "pass_type": purchase.pass_type,
+        "purchase_date": purchase.purchase_date.isoformat(),
+        "used_uses": purchase_used(purchase),
+        "remaining_uses": purchase.total_uses - purchase_used(purchase),
+    } for purchase, phone in rows]
 
 
 @router.get("/storage/status")
@@ -616,6 +755,24 @@ def get_parent(parent_id: int, db: Session = Depends(get_db)):
     return serialize_parent(parent)
 
 
+@router.get("/parents/{parent_id}/workbook-rework-options")
+def get_workbook_rework_options(parent_id: int, db: Session = Depends(get_db)):
+    today = seoul_date()
+    rows = (
+        db.query(Submission, WorkbookPurchase)
+        .join(WorkbookUse, WorkbookUse.submission_id == Submission.id)
+        .join(WorkbookPurchase, WorkbookPurchase.id == WorkbookUse.purchase_id)
+        .filter(Submission.parent_id == parent_id,
+                Submission.product_type == PRODUCT_WORKBOOK,
+                Submission.status == "sent",
+                WorkbookPurchase.expires_on >= today)
+        .order_by(Submission.created_at.desc())
+        .all()
+    )
+    return [{"submission_id": s.id, "workbook_level": s.workbook_level,
+             "created_at": to_utc_iso(s.created_at)} for s, _ in rows]
+
+
 @router.put("/parents/{parent_id}")
 def update_parent(parent_id: int, body: ParentUpdate, db: Session = Depends(get_db)):
     """Update a parent's information."""
@@ -641,6 +798,36 @@ def update_parent(parent_id: int, body: ParentUpdate, db: Session = Depends(get_
     elif body.level is not None:
         validate_level(body.level)
         apply_parent_levels(parent, [body.level])
+    if body.workbook_purchases is not None:
+        seen_ids = set()
+        for edit in body.workbook_purchases:
+            if edit.id in seen_ids:
+                raise HTTPException(status_code=400, detail="같은 구매 내역이 중복되었습니다.")
+            seen_ids.add(edit.id)
+            purchase = db.query(WorkbookPurchase).filter_by(id=edit.id, parent_id=parent_id).first()
+            if not purchase:
+                raise HTTPException(status_code=404, detail="8주 완성 구매 내역을 찾을 수 없습니다.")
+            if not edit.buyer_name.strip() or not edit.channel.strip():
+                raise HTTPException(status_code=400, detail="구매자명과 채널을 입력해주세요.")
+            if edit.workbook_level not in WORKBOOK_LEVELS or edit.pass_type not in PASS_LIMITS:
+                raise HTTPException(status_code=400, detail="8주 완성 단계 또는 구매유형을 확인해주세요.")
+            if edit.expires_on < edit.purchase_date:
+                raise HTTPException(status_code=400, detail="이용기한은 구매일 이후여야 합니다.")
+            total_uses = PASS_LIMITS[edit.pass_type][0]
+            recorded_uses = len(purchase.uses)
+            if not recorded_uses <= edit.used_uses <= total_uses:
+                raise HTTPException(status_code=400, detail="사용완료횟수가 구매유형 또는 기록된 첨삭 이력과 맞지 않습니다.")
+            if recorded_uses and edit.workbook_level != purchase.workbook_level:
+                raise HTTPException(status_code=400, detail="첨삭 사용 이력이 있는 구매의 교재단계는 변경할 수 없습니다.")
+            purchase.buyer_name = edit.buyer_name.strip()
+            purchase.workbook_level = edit.workbook_level
+            purchase.channel = edit.channel.strip()
+            purchase.pass_type = edit.pass_type
+            purchase.purchase_date = edit.purchase_date
+            purchase.expires_on = edit.expires_on
+            purchase.total_uses = total_uses
+            purchase.opening_used = edit.used_uses - recorded_uses
+            purchase.note = (edit.note or "").strip() or None
 
     db.commit()
     db.refresh(parent)
@@ -658,6 +845,8 @@ def delete_parent(parent_id: int, db: Session = Depends(get_db)):
     parent = db.query(Parent).filter(Parent.id == parent_id).first()
     if not parent:
         raise HTTPException(status_code=404, detail="Parent not found")
+    if parent.workbook_purchases:
+        raise HTTPException(status_code=409, detail="8주 완성 구매·사용 내역이 있는 고객은 삭제할 수 없습니다.")
 
     submissions = db.query(Submission).filter(Submission.parent_id == parent_id).all()
     for submission in submissions:
@@ -700,6 +889,8 @@ def get_parent_history(
             {
                 "id": s.id,
                 "status": s.status,
+                "product_type": s.product_type,
+                "workbook_level": s.workbook_level,
                 "level": s.level,
                 "stage": s.stage,
                 "feedback_draft": s.feedback_draft,

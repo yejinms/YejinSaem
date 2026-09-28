@@ -10,12 +10,15 @@ from levels_utils import apply_parent_levels, parse_parent_levels_json
 
 from sqlalchemy import (
     Column,
+    Date,
     DateTime,
     Enum,
     ForeignKey,
     Integer,
+    Boolean,
     String,
     Text,
+    UniqueConstraint,
     create_engine,
     inspect,
     text,
@@ -46,6 +49,7 @@ class Parent(Base):
     phone_number = Column(String, nullable=True)  # 솔라피 친구톡 발송용
     child_name = Column(String, nullable=False)
     child_age = Column(Integer, nullable=True)
+    weekly_words_enabled = Column(Boolean, nullable=False, default=True)
     level = Column(
         Enum("표현력", "초등기초", "초등심화", name="level_enum"),
         nullable=False,
@@ -55,6 +59,43 @@ class Parent(Base):
     created_at = Column(DateTime, default=utc_now_naive)
 
     submissions = relationship("Submission", back_populates="parent")
+    workbook_purchases = relationship("WorkbookPurchase", back_populates="parent")
+
+
+class WorkbookPurchase(Base):
+    __tablename__ = "workbook_purchases"
+
+    id = Column(Integer, primary_key=True)
+    parent_id = Column(Integer, ForeignKey("parents.id"), nullable=False, index=True)
+    buyer_name = Column(String, nullable=False)
+    workbook_level = Column(String, nullable=False)
+    channel = Column(String, nullable=False)
+    pass_type = Column(String, nullable=False)
+    purchase_date = Column(Date, nullable=False)
+    expires_on = Column(Date, nullable=False)
+    total_uses = Column(Integer, nullable=False)
+    opening_used = Column(Integer, nullable=False, default=0)
+    onboarding_requested = Column(Boolean, nullable=False, default=False)
+    onboarding_sent = Column(Boolean, nullable=False, default=False)
+    d14_sent = Column(Boolean, nullable=False, default=False)
+    d7_sent = Column(Boolean, nullable=False, default=False)
+    note = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=utc_now_naive)
+
+    parent = relationship("Parent", back_populates="workbook_purchases")
+    uses = relationship("WorkbookUse", back_populates="purchase")
+
+
+class WorkbookUse(Base):
+    __tablename__ = "workbook_uses"
+    __table_args__ = (UniqueConstraint("submission_id", name="uq_workbook_use_submission"),)
+
+    id = Column(Integer, primary_key=True)
+    purchase_id = Column(Integer, ForeignKey("workbook_purchases.id"), nullable=False, index=True)
+    submission_id = Column(Integer, ForeignKey("submissions.id"), nullable=False)
+    created_at = Column(DateTime, default=utc_now_naive)
+
+    purchase = relationship("WorkbookPurchase", back_populates="uses")
 
 
 class Submission(Base):
@@ -62,6 +103,9 @@ class Submission(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     parent_id = Column(Integer, ForeignKey("parents.id"), nullable=False)
+    product_type = Column(String, nullable=False, default="weekly_words")
+    workbook_level = Column(String, nullable=True)
+    rework_of_submission_id = Column(Integer, ForeignKey("submissions.id"), nullable=True)
     photo_path = Column(String, nullable=True)
     level = Column(String, nullable=True)
     stage = Column(Integer, nullable=True)
@@ -115,4 +159,24 @@ def _migrate_parent_levels_column() -> None:
 def init_db():
     """Create all tables if they don't exist."""
     Base.metadata.create_all(bind=engine)
+    _migrate_parent_product_column()
     _migrate_parent_levels_column()
+    _migrate_submission_product_columns()
+
+
+def _migrate_submission_product_columns() -> None:
+    columns = {col["name"] for col in inspect(engine).get_columns("submissions")}
+    with engine.begin() as conn:
+        if "product_type" not in columns:
+            conn.execute(text("ALTER TABLE submissions ADD COLUMN product_type VARCHAR DEFAULT 'weekly_words' NOT NULL"))
+        if "workbook_level" not in columns:
+            conn.execute(text("ALTER TABLE submissions ADD COLUMN workbook_level VARCHAR"))
+        if "rework_of_submission_id" not in columns:
+            conn.execute(text("ALTER TABLE submissions ADD COLUMN rework_of_submission_id INTEGER"))
+
+
+def _migrate_parent_product_column() -> None:
+    columns = {col["name"] for col in inspect(engine).get_columns("parents")}
+    if "weekly_words_enabled" not in columns:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE parents ADD COLUMN weekly_words_enabled BOOLEAN DEFAULT 1 NOT NULL"))

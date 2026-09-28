@@ -140,6 +140,7 @@ def upsert_parent(
     existing = db.query(Parent).filter(Parent.phone_number == phone_number).first()
 
     if existing:
+        existing.weekly_words_enabled = True
         existing.child_name = child_name
         existing.child_age = child_age
         existing.phone_number = phone_number
