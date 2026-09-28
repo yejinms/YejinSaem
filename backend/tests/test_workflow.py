@@ -1,6 +1,7 @@
 import os
 import shutil
 import sys
+import zipfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -16,6 +17,7 @@ import routers.admin as admin_router
 import routers.kakao as kakao_router
 from database import Base, Parent, SessionLocal, Submission, engine
 from main import app
+import storage_r2_archive
 
 
 client = TestClient(app)
@@ -253,6 +255,146 @@ def test_storage_photos_backup_zip():
     assert res.headers["content-type"].startswith("application/zip")
     assert "yejinsaem-photos" in res.headers.get("content-disposition", "")
     assert len(res.content) > 100
+
+
+def test_auto_archive_removes_only_verified_sent_photos(monkeypatch):
+    parent_id = create_parent()
+    sent_path = Path("test_uploads/auto-sent.jpg")
+    pending_path = Path("test_uploads/auto-pending.jpg")
+    sent_path.write_bytes(b"sent-photo" * 100)
+    pending_path.write_bytes(b"pending-photo" * 100)
+    db = SessionLocal()
+    db.add_all([
+        Submission(parent_id=parent_id, photo_path=str(sent_path), status="sent"),
+        Submission(parent_id=parent_id, photo_path=str(pending_path), status="pending"),
+    ])
+    db.commit()
+    monkeypatch.setenv("AUTO_ARCHIVE_ENABLED", "true")
+    configure_test_archive(monkeypatch)
+
+    uploaded = []
+    def verified_upload(_client, path, key):
+        uploaded.append(key)
+        if key.endswith(".zip"):
+            with zipfile.ZipFile(path) as archive:
+                assert archive.testzip() is None
+                assert len(archive.namelist()) == 3
+
+    monkeypatch.setattr(storage_r2_archive, "upload_verified", verified_upload)
+    result = storage_r2_archive.archive_if_needed(db)
+    assert len(uploaded) == 2
+    assert result["photos_archived"] == 2
+    assert result["sent_photos_removed"] == 1
+    assert not sent_path.exists()
+    assert pending_path.exists()
+    assert db.query(Submission).filter(Submission.status == "sent").one().photo_path is None
+    db.close()
+
+
+def test_auto_archive_upload_failure_keeps_photos(monkeypatch):
+    parent_id = create_parent()
+    sent_path = Path("test_uploads/auto-failure.jpg")
+    sent_path.write_bytes(b"must-remain" * 100)
+    db = SessionLocal()
+    db.add(Submission(parent_id=parent_id, photo_path=str(sent_path), status="sent"))
+    db.commit()
+    monkeypatch.setenv("AUTO_ARCHIVE_ENABLED", "true")
+    configure_test_archive(monkeypatch)
+
+    def failed_upload(*_args):
+        raise RuntimeError("R2 unavailable")
+
+    monkeypatch.setattr(storage_r2_archive, "upload_verified", failed_upload)
+    try:
+        storage_r2_archive.archive_if_needed(db)
+        assert False, "Expected upload failure"
+    except RuntimeError as exc:
+        assert "R2 unavailable" in str(exc)
+    assert sent_path.exists()
+    assert db.query(Submission).filter(Submission.status == "sent").one().photo_path
+    db.close()
+
+
+def test_auto_archive_preserves_photo_changed_after_upload(monkeypatch):
+    parent_id = create_parent()
+    sent_path = Path("test_uploads/auto-changed.jpg")
+    sent_path.write_bytes(b"original-photo" * 100)
+    db = SessionLocal()
+    db.add(Submission(parent_id=parent_id, photo_path=str(sent_path), status="sent"))
+    db.commit()
+    monkeypatch.setenv("AUTO_ARCHIVE_ENABLED", "true")
+    configure_test_archive(monkeypatch)
+
+    def changed_during_upload(_client, _path, key):
+        if key.endswith(".zip"):
+            sent_path.write_bytes(b"new-photo" * 100)
+
+    monkeypatch.setattr(storage_r2_archive, "upload_verified", changed_during_upload)
+    result = storage_r2_archive.archive_if_needed(db)
+    assert result["sent_photos_removed"] == 0
+    assert sent_path.read_bytes() == b"new-photo" * 100
+    assert db.query(Submission).filter(Submission.status == "sent").one().photo_path
+    db.close()
+
+
+def configure_test_archive(monkeypatch):
+    monkeypatch.setenv("AUTO_ARCHIVE_ENABLED", "true")
+    monkeypatch.setenv("R2_ACCOUNT_ID", "test-account")
+    monkeypatch.setenv("R2_BUCKET", "test-bucket")
+    monkeypatch.setenv("R2_ACCESS_KEY_ID", "test-key")
+    monkeypatch.setenv("R2_SECRET_ACCESS_KEY", "test-secret")
+    monkeypatch.setattr(storage_r2_archive, "THRESHOLD_BYTES", 1)
+    monkeypatch.setattr(storage_r2_archive, "_r2_client", lambda: object())
+    monkeypatch.setattr(storage_r2_archive, "r2_used_bytes", lambda _client: 0)
+
+
+def test_r2_upload_requires_matching_download(monkeypatch, tmp_path):
+    monkeypatch.setenv("R2_BUCKET", "test-bucket")
+    sample = tmp_path / "sample.zip"
+    sample.write_bytes(b"verified-backup")
+
+    class RemoteBody:
+        def iter_chunks(self, chunk_size):
+            yield b"corrupt-backup!"
+
+        def close(self):
+            pass
+
+    class Remote:
+        metadata = None
+
+        def upload_file(self, _path, _bucket, _key, ExtraArgs):
+            self.metadata = ExtraArgs["Metadata"]
+
+        def head_object(self, **_kwargs):
+            return {"ContentLength": sample.stat().st_size, "Metadata": self.metadata}
+
+        def get_object(self, **_kwargs):
+            return {"Body": RemoteBody()}
+
+    try:
+        storage_r2_archive.upload_verified(Remote(), sample, "sample.zip")
+        assert False, "Expected remote checksum mismatch"
+    except RuntimeError as exc:
+        assert "원본과 일치하지 않습니다" in str(exc)
+
+
+def test_auto_archive_capacity_limit_keeps_photos(monkeypatch):
+    parent_id = create_parent()
+    sent_path = Path("test_uploads/auto-capacity.jpg")
+    sent_path.write_bytes(b"photo" * 100)
+    db = SessionLocal()
+    db.add(Submission(parent_id=parent_id, photo_path=str(sent_path), status="sent"))
+    db.commit()
+    configure_test_archive(monkeypatch)
+    monkeypatch.setattr(storage_r2_archive, "r2_used_bytes", lambda _client: 9_000_000_000)
+    try:
+        storage_r2_archive.archive_if_needed(db)
+        assert False, "Expected R2 capacity stop"
+    except RuntimeError as exc:
+        assert "9GB" in str(exc)
+    assert sent_path.exists()
+    db.close()
 
 
 def test_get_submission_includes_last_selected_mission():

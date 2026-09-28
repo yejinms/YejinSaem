@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from database import Parent, Submission, get_db
 from routers.admin import serialize_photo_paths
+from storage_r2_archive import request_archive_check
 from services.kakao_service import build_kakao_response
 from services.parent_match import (
     CHANNEL_GREETING,
@@ -294,6 +295,7 @@ async def make_incoming(
     db.add(submission)
     db.commit()
     db.refresh(submission)
+    request_archive_check()
 
     logger.info("Make.com submission #%s for parent_id=%s", submission.id, parent.id)
     return {
@@ -428,6 +430,7 @@ async def _handle_kakao_webhook(body: dict, db: Session) -> Response:
     db.add(submission)
     db.commit()
     db.refresh(submission)
+    request_archive_check()
 
     logger.info(
         "Created submission #%s for kakao_user_id=%s with %s image(s)",

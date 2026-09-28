@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 # Import database initialization
 from database import init_db
+from storage_r2_archive import request_archive_check
 
 # Import routers
 from routers import admin, kakao, parents
@@ -71,6 +72,7 @@ def on_startup():
     init_db()
     logger.info("Database initialized successfully.")
     logger.info(f"Upload directory: {UPLOAD_DIR.resolve()}")
+    request_archive_check()
 
 
 @app.get("/health")

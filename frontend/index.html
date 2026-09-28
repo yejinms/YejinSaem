@@ -2246,6 +2246,13 @@ async function loadStorageStatus() {
       `전체 <strong>${escapeHtml(s.total_human)}</strong> (사진 ${escapeHtml(s.upload_human)} · DB ${escapeHtml(s.database_human)})`,
       `사진 ${s.upload_file_count}개 · 발송 완료 사진 ${s.sent_submissions_with_photos}건 · 고아 파일 ${s.orphan_file_count}개 (${escapeHtml(s.orphan_human)})`,
       `대기 중 사진 ${s.active_submissions_with_photos}건`,
+      s.auto_archive?.enabled
+        ? (s.auto_archive.usage_error
+            ? 'R2 백업 용량을 확인할 수 없습니다. Railway 로그를 확인하세요.'
+            : `R2 자동 백업: ${(s.auto_archive.used_bytes / 1e9).toFixed(2)} / 9 GB${s.auto_archive.used_bytes >= s.auto_archive.warning_bytes ? ' · 외장하드로 옮길 준비가 필요합니다' : ''}`)
+        : 'R2 자동 백업: 설정 전',
+      s.auto_archive?.enabled && s.auto_archive?.last_error ? escapeHtml(s.auto_archive.last_error) : '',
+      s.auto_archive?.enabled && s.auto_archive?.last_success_at ? `최근 R2 백업: ${escapeHtml(new Date(s.auto_archive.last_success_at).toLocaleString('ko-KR'))}` : '',
     ].join('<br>');
   } catch (e) {
     el.textContent = '용량 정보를 불러오지 못했습니다: ' + e.message;

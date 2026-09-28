@@ -121,6 +121,12 @@ def get_storage_status(db) -> dict:
 
 def create_photos_backup_zip(db) -> tuple[Path, int]:
     """Pack all upload photos into a zip on /tmp (not on the volume)."""
+    zip_path, count, _ = create_photos_backup_snapshot(db)
+    return zip_path, count
+
+
+def create_photos_backup_snapshot(db) -> tuple[Path, int, list[dict]]:
+    """Return the ZIP and exact source files captured for safe automated cleanup."""
     uploads_path = upload_dir()
     if not uploads_path.exists():
         raise ValueError("업로드 폴더가 없습니다.")
@@ -159,6 +165,8 @@ def create_photos_backup_zip(db) -> tuple[Path, int]:
                     "status": submission.status,
                     "created_at": to_utc_iso(submission.created_at),
                     "bytes": file_path.stat().st_size,
+                    "mtime_ns": file_path.stat().st_mtime_ns,
+                    "stored_photo_path": submission.photo_path,
                 }
             )
 
@@ -178,6 +186,8 @@ def create_photos_backup_zip(db) -> tuple[Path, int]:
                 "status": "orphan",
                 "created_at": None,
                 "bytes": file_path.stat().st_size,
+                "mtime_ns": file_path.stat().st_mtime_ns,
+                "stored_photo_path": None,
             }
         )
 
@@ -189,33 +199,42 @@ def create_photos_backup_zip(db) -> tuple[Path, int]:
     zip_path = Path(tmp_name)
 
     manifest = []
-    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_STORED) as archive:
-        for entry in entries:
-            archive.write(entry["path"], arcname=entry["arcname"])
-            manifest.append(
-                {
-                    "path": entry["arcname"],
-                    "submission_id": entry["submission_id"],
-                    "child_name": entry["child_name"],
-                    "status": entry["status"],
-                    "created_at": entry["created_at"],
-                    "bytes": entry["bytes"],
-                }
+    try:
+        with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_STORED) as archive:
+            for entry in entries:
+                archive.write(entry["path"], arcname=entry["arcname"])
+                current = entry["path"].stat()
+                if current.st_size != entry["bytes"] or current.st_mtime_ns != entry["mtime_ns"]:
+                    raise RuntimeError("백업 중 사진이 변경되었습니다. 다음 실행에서 다시 시도합니다.")
+                manifest.append(
+                    {
+                        "path": entry["arcname"],
+                        "submission_id": entry["submission_id"],
+                        "child_name": entry["child_name"],
+                        "status": entry["status"],
+                        "created_at": entry["created_at"],
+                        "bytes": entry["bytes"],
+                    }
+                )
+            archive.writestr(
+                "manifest.json",
+                json.dumps(
+                    {
+                        "exported_at": datetime.now(timezone.utc).isoformat(),
+                        "photo_count": len(entries),
+                        "files": manifest,
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
             )
-        archive.writestr(
-            "manifest.json",
-            json.dumps(
-                {
-                    "exported_at": datetime.now(timezone.utc).isoformat(),
-                    "photo_count": len(entries),
-                    "files": manifest,
-                },
-                ensure_ascii=False,
-                indent=2,
-            ),
-        )
-
-    return zip_path, len(entries)
+        with zipfile.ZipFile(zip_path) as archive:
+            if archive.testzip() is not None:
+                raise RuntimeError("사진 ZIP 무결성 검사에 실패했습니다.")
+        return zip_path, len(entries), entries
+    except Exception:
+        zip_path.unlink(missing_ok=True)
+        raise
 
 
 def cleanup_storage(

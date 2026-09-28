@@ -29,6 +29,7 @@ from storage_maintenance import (
     database_file_path,
     get_storage_status,
 )
+from storage_r2_archive import request_archive_check, archive_status
 from services.claude_service import generate_feedback, get_anthropic_key_status
 from services.outbound_privacy import sanitize_channel_feedback
 from services.kakao_service import send_feedback_message
@@ -269,6 +270,7 @@ async def upload_submission(
     db.add(submission)
     db.commit()
     db.refresh(submission)
+    request_archive_check()
     return {
         "id": submission.id,
         "photo_path": photo_paths[0],
@@ -542,7 +544,9 @@ def bulk_import_parents(body: ParentBulkImportRequest, db: Session = Depends(get
 @router.get("/storage/status")
 def storage_status(db: Session = Depends(get_db)):
     """Volume usage breakdown for Railway /data."""
-    return get_storage_status(db)
+    result = get_storage_status(db)
+    result["auto_archive"] = archive_status()
+    return result
 
 
 @router.post("/storage/cleanup")
