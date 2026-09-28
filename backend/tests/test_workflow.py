@@ -982,6 +982,19 @@ def test_workbook_preview_accepts_markdown_row_with_extra_empty_columns():
     assert result.json()["rows"][0]["total_uses"] == 1
 
 
+def test_workbook_sheet_balance_feed_uses_separate_read_only_token(monkeypatch):
+    monkeypatch.setenv("WORKBOOK_SHEET_SYNC_TOKEN", "sheet-only-test-token")
+    assert client.get("/workbook-sheet/balances").status_code == 401
+    assert client.get("/workbook-sheet/balances", headers={
+        "Authorization": "Bearer wrong-token",
+    }).status_code == 401
+    response = client.get("/workbook-sheet/balances", headers={
+        "Authorization": "Bearer sheet-only-test-token",
+    })
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)
+
+
 def test_parent_edit_updates_workbook_purchase_without_losing_weekly_data():
     parent_id = create_parent()
     db = SessionLocal()

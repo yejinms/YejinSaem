@@ -1,21 +1,20 @@
 /**
  * Add this file to the existing 8주완성 고객관리 Apps Script project.
- * In the existing expiry reminder function, call syncEightWeekBalancesFromWeb()
- * before reading customer rows.
- * Script Properties: WEB_API_BASE (e.g. https://...up.railway.app), WEB_ADMIN_PASSWORD.
- * This script does not send messages; the existing dailyExpiryCheck remains the sender.
+ * Install an independent time-driven trigger (for example, every 5 minutes).
+ * Script Properties: WEB_API_BASE (deployed web URL), WEB_SHEET_SYNC_TOKEN.
+ * This script does not send messages or change the existing reminder trigger.
  */
 function syncEightWeekBalancesFromWeb() {
   const columns = {phone: 2, level: 3, type: 5, purchaseDate: 6,
                    total: 9, used: 10, remain: 11, lastReminder: 14};
   const props = PropertiesService.getScriptProperties();
   const base = String(props.getProperty('WEB_API_BASE') || '').replace(/\/$/, '');
-  const password = props.getProperty('WEB_ADMIN_PASSWORD');
-  if (!base || !password) throw new Error('WEB_API_BASE / WEB_ADMIN_PASSWORD 설정이 필요합니다.');
+  const token = props.getProperty('WEB_SHEET_SYNC_TOKEN');
+  if (!base || !token) throw new Error('WEB_API_BASE / WEB_SHEET_SYNC_TOKEN 설정이 필요합니다.');
 
-  const response = UrlFetchApp.fetch(base + '/admin/workbook-purchases/sheet-balances', {
+  const response = UrlFetchApp.fetch(base + '/workbook-sheet/balances', {
     method: 'get',
-    headers: { Authorization: 'Bearer ' + encodeURIComponent(password) },
+    headers: { Authorization: 'Bearer ' + token },
     muteHttpExceptions: true,
   });
   if (response.getResponseCode() !== 200) {
@@ -39,6 +38,7 @@ function syncEightWeekBalancesFromWeb() {
   const rows = sheet.getRange(2, 1, lastRow - 1, columns.lastReminder).getValues();
   const seen = new Set();
   const updates = [];
+  const notYetImported = [];
   const remainFormula = '=RC[' + (columns.total - columns.remain) + ']-RC[' + (columns.used - columns.remain) + ']';
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
@@ -49,7 +49,10 @@ function syncEightWeekBalancesFromWeb() {
     const bought = Utilities.formatDate(purchaseDate, sheetTimezone, 'yyyy-MM-dd');
     const key = [digits_(phone), row[columns.level - 1], row[columns.type - 1], bought].join('|');
     const item = byKey.get(key);
-    if (!item) throw new Error('웹 DB에 없는 시트 구매 행: ' + (i + 2));
+    if (!item) {
+      notYetImported.push(i + 2);
+      continue;
+    }
     if (seen.has(key)) throw new Error('시트의 구매 행이 중복됩니다: ' + (i + 2));
     seen.add(key);
     if (Number(row[columns.total - 1]) !== Number(item.used_uses) + Number(item.remaining_uses)) {
@@ -62,6 +65,9 @@ function syncEightWeekBalancesFromWeb() {
     if (Number(usedCell.getValue()) !== Number(item.used)) usedCell.setValue(item.used);
     const remainCell = sheet.getRange(item.row, columns.remain);
     if (!remainCell.getFormula()) remainCell.setFormulaR1C1(remainFormula);
+  }
+  if (notYetImported.length) {
+    console.log('웹 DB로 이관되지 않아 건너뛴 시트 행: ' + notYetImported.join(', '));
   }
 }
 

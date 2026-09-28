@@ -3,6 +3,7 @@ admin.py - Admin REST API for managing submissions and parents
 """
 
 import json
+import hmac
 import logging
 import os
 import uuid
@@ -10,7 +11,7 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Header, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -56,6 +57,7 @@ from workbook_service import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(verify_admin)])
+sheet_router = APIRouter(prefix="/workbook-sheet", tags=["workbook-sheet"])
 
 MAX_SUBMISSION_IMAGES = 10
 
@@ -645,6 +647,25 @@ def list_workbook_purchases(db: Session = Depends(get_db)):
 @router.get("/workbook-purchases/sheet-balances")
 def workbook_sheet_balances(db: Session = Depends(get_db)):
     """Read-only balance feed for the existing onboarding/expiry Google Sheet."""
+    return list_workbook_sheet_balances(db)
+
+
+def verify_sheet_sync_token(authorization: str | None = Header(default=None)) -> None:
+    token = os.getenv("WORKBOOK_SHEET_SYNC_TOKEN", "").strip()
+    if not token:
+        raise HTTPException(status_code=503, detail="시트 동기화가 설정되지 않았습니다.")
+    provided = (authorization or "").removeprefix("Bearer ").strip()
+    if not authorization or not authorization.startswith("Bearer ") or not hmac.compare_digest(provided, token):
+        raise HTTPException(status_code=401, detail="시트 동기화 인증에 실패했습니다.")
+
+
+@sheet_router.get("/balances", dependencies=[Depends(verify_sheet_sync_token)])
+def read_workbook_sheet_balances(db: Session = Depends(get_db)):
+    """Narrow read-only feed; the Sheet script never receives the admin password."""
+    return list_workbook_sheet_balances(db)
+
+
+def list_workbook_sheet_balances(db: Session) -> list[dict]:
     rows = db.query(WorkbookPurchase, Parent.phone_number).join(
         Parent, Parent.id == WorkbookPurchase.parent_id
     ).all()
