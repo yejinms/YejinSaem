@@ -12,7 +12,10 @@ import anthropic
 from dotenv import load_dotenv
 from PIL import Image
 
-from prompts import get_feedback_user_prompt, get_system_prompt
+from prompts import (
+    get_feedback_user_prompt, get_system_prompt,
+    get_workbook_system_prompt, get_workbook_user_prompt,
+)
 from upload_paths import resolve_upload_file_path
 
 logger = logging.getLogger(__name__)
@@ -159,10 +162,11 @@ def _image_content_block(image_path: str) -> dict:
 
 def generate_feedback(
     image_path: str | list[str],
-    level_key: str,
-    stage_num: int,
+    level_key: str | None = None,
+    stage_num: int | None = None,
     extra_instruction: str = "",
     previous_feedbacks: list = None,
+    workbook_level: str | None = None,
 ) -> str:
     """
     Generate writing feedback using Claude vision.
@@ -176,12 +180,17 @@ def generate_feedback(
     if not image_paths:
         raise FileNotFoundError("No image files provided")
 
-    user_prompt = get_feedback_user_prompt(
-        level_key=level_key,
-        stage_num=stage_num,
-        extra_instruction=extra_instruction,
-        previous_feedbacks=previous_feedbacks or [],
-    )
+    if workbook_level:
+        user_prompt = get_workbook_user_prompt(workbook_level, extra_instruction, previous_feedbacks or [])
+        system_prompt = get_workbook_system_prompt()
+    else:
+        user_prompt = get_feedback_user_prompt(
+            level_key=level_key,
+            stage_num=stage_num,
+            extra_instruction=extra_instruction,
+            previous_feedbacks=previous_feedbacks or [],
+        )
+        system_prompt = get_system_prompt()
     content_blocks = [_image_content_block(path) for path in image_paths]
     content_blocks.append({
         "type": "text",
@@ -192,7 +201,7 @@ def generate_feedback(
         response = client.messages.create(
             model="claude-sonnet-4-6",
             max_tokens=2048,
-            system=get_system_prompt(),
+            system=system_prompt,
             messages=[
                 {
                     "role": "user",

@@ -1051,6 +1051,17 @@
           </select>
         </div>
       </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label for="upload-product-select">교재</label>
+        <select id="upload-product-select" onchange="updateUploadProductOptions()" aria-label="교재 선택">
+          <option value="">고객을 먼저 선택해주세요</option>
+        </select>
+        <div id="upload-pass-summary" class="parent-sub" style="margin-top:6px"></div>
+        <div id="upload-rework-wrap" style="display:none; margin-top:8px">
+          <label for="upload-rework-select">수정본이면 원본 첨삭 선택 (추가 차감 없음)</label>
+          <select id="upload-rework-select" aria-label="수정본 원본 첨삭"></select>
+        </div>
+      </div>
       <div class="upload-empty-hint" id="upload-empty-hint">사진을 선택해 제출을 만들어 주세요.</div>
       <div class="upload-preview" id="upload-preview"></div>
       <input type="file" id="direct-photo-input" accept="image/*" multiple style="display:none" />
@@ -1087,6 +1098,7 @@
     <div style="display:flex; gap:8px; flex-shrink:0;">
       <button class="btn btn-primary btn-sm" type="button" onclick="openAddParent()">+ 개별 추가</button>
       <button class="btn btn-outline btn-sm" type="button" onclick="openParentsBulkImport()">+ 붙여넣기</button>
+      <button class="btn btn-outline btn-sm" type="button" onclick="openWorkbookImport()">+ 8주 완성 구매</button>
     </div>
   </div>
 
@@ -1235,6 +1247,23 @@
   </div>
 </div>
 
+<!-- ===== Modal: 8-week workbook purchase import ===== -->
+<div class="modal-overlay" id="workbook-import-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">8주 완성 구매 내역 가져오기</span>
+      <button class="modal-close" type="button" onclick="closeModal('workbook-import-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:14px; line-height:1.5">시트의 고객 행 15개 열을 그대로 붙여넣으세요. 메시지는 발송되지 않습니다.</p>
+      <textarea id="workbook-import-text" class="feedback-area" rows="5" placeholder="구매자명&#9;연락처&#9;교재단계&#9;채널&#9;구매유형&#9;구매일 ..."></textarea>
+      <button type="button" class="btn btn-outline" onclick="previewWorkbookImport()">먼저 확인</button>
+      <button type="button" class="btn btn-primary" id="workbook-import-save" onclick="saveWorkbookImport()" disabled>구매 내역 저장</button>
+      <pre id="workbook-import-result" class="bulk-import-result" style="margin-top:12px"></pre>
+    </div>
+  </div>
+</div>
+
 <!-- ===== Modal: Parent History ===== -->
 <div class="modal-overlay" id="parent-history-modal">
   <div class="modal">
@@ -1257,6 +1286,7 @@ const API_BASE = '';  // Same origin
 const LEVEL_ORDER = ['표현력', '초등기초', '초등심화'];
 
 function formatParentLevels(parent) {
+  if (parent?.weekly_words_enabled === false) return '8주 완성';
   const levels = parent?.levels?.length ? parent.levels : (parent?.level ? [parent.level] : []);
   return levels.length ? levels.join(' · ') : '-';
 }
@@ -1336,6 +1366,8 @@ let selectedStage = null;
 let directUploadFiles = [];
 let directUploadFileSeq = 0;
 let cachedParents = [];
+let uploadReworks = [];
+let uploadReworksParentId = '';
 const ADMIN_TOKEN_KEY = 'yejinsaem_admin_token';
 const MAX_DIRECT_UPLOAD_IMAGES = 10;
 
@@ -1384,7 +1416,7 @@ function renderHistoryItem(s, { showParentName = false, clickable = false, close
   return `
     <div${clickAttr}>
       <div class="history-meta">
-        <span class="history-level">${s.level || '-'} ${s.stage ? s.stage + '단계' : ''}</span>
+        <span class="history-level">${s.product_type === 'eight_week_workbook' ? `8주 완성 · ${escapeHtml(s.workbook_level || '-')}` : `매주 3단어 · ${escapeHtml(s.level || '-')} ${s.stage ? s.stage + '단계' : ''}`}</span>
         <span style="font-size:14px; color:var(--text-muted)">${formatDate(s.created_at)}</span>
       </div>
       ${showParentName ? `<div style="font-size:14px; font-weight:600; margin-bottom:6px;">${escapeHtml(parentName)}</div>` : ''}
@@ -1616,6 +1648,64 @@ function renderUploadParentSelect() {
   if (filtered.some(p => String(p.id) === previousValue)) {
     select.value = previousValue;
   }
+  refreshUploadChoices();
+}
+
+async function refreshUploadChoices() {
+  const parentId = document.getElementById('upload-parent-select')?.value || '';
+  if (parentId !== uploadReworksParentId) {
+    uploadReworksParentId = parentId;
+    uploadReworks = [];
+    const productSelect = document.getElementById('upload-product-select');
+    if (productSelect) productSelect.value = '';
+    if (parentId) {
+      try {
+        const rows = await api(`/admin/parents/${encodeURIComponent(parentId)}/workbook-rework-options`);
+        if (uploadReworksParentId === parentId) uploadReworks = rows;
+      } catch (_) {
+        // The purchase list still remains available if revision history fails to load.
+      }
+    }
+  }
+  updateUploadProductOptions();
+}
+
+function updateUploadProductOptions() {
+  const parent = cachedParents.find(p => String(p.id) === document.getElementById('upload-parent-select')?.value);
+  const select = document.getElementById('upload-product-select');
+  const summary = document.getElementById('upload-pass-summary');
+  if (!select || !summary) return;
+  const previous = select.value;
+  const today = new Date().toLocaleDateString('en-CA', {timeZone:'Asia/Seoul'});
+  const purchases = parent?.workbook_purchases || [];
+  const levels = [...new Set([
+    ...purchases.filter(p => p.purchase_date <= today && p.expires_on >= today && p.remaining_uses > 0).map(p => p.workbook_level),
+    ...uploadReworks.map(r => r.workbook_level),
+  ])];
+  const options = [];
+  if (parent?.weekly_words_enabled) options.push({value:'weekly_words', label:'매주 3단어'});
+  levels.forEach(level => options.push({value:`eight_week_workbook:${level}`, label:`8주 완성 · ${level}`}));
+  select.innerHTML = options.length
+    ? '<option value="">교재를 선택해주세요</option>' + options.map(o => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</option>`).join('')
+    : '<option value="">사용 가능한 교재가 없습니다</option>';
+  if (options.some(o => o.value === previous)) select.value = previous;
+  const product = select.value;
+  if (product.startsWith('eight_week_workbook:')) {
+    const level = product.split(':')[1];
+    const active = purchases.filter(p => p.workbook_level === level && p.purchase_date <= today && p.expires_on >= today && p.remaining_uses > 0);
+    const remain = active.reduce((sum, p) => sum + p.remaining_uses, 0);
+    summary.textContent = `${level} · 사용 가능한 첨삭 ${remain}회 · ${active.map(p => `${p.pass_type} ${p.remaining_uses}회 (${p.expires_on}까지)`).join(' / ')}`;
+    const reworkWrap = document.getElementById('upload-rework-wrap');
+    const reworkSelect = document.getElementById('upload-rework-select');
+    const oldValue = reworkSelect.value;
+    const options = uploadReworks.filter(r => r.workbook_level === level);
+    reworkWrap.style.display = options.length ? '' : 'none';
+    reworkSelect.innerHTML = `<option value="">${remain > 0 ? '새 첨삭 (1회 차감)' : '잔여 횟수 없음 — 수정본을 선택하세요'}</option>` + options.map(r => `<option value="${r.submission_id}">#${r.submission_id} · ${formatDate(r.created_at)} 첨삭의 수정본</option>`).join('');
+    if (options.some(r => String(r.submission_id) === oldValue)) reworkSelect.value = oldValue;
+  } else {
+    summary.textContent = product === 'weekly_words' ? '매주 3단어 첨삭' : '';
+    document.getElementById('upload-rework-wrap').style.display = 'none';
+  }
 }
 
 function renderParentsList() {
@@ -1645,6 +1735,7 @@ function renderParentsList() {
           <div>
             <div class="parent-name">${escapeHtml(p.child_name)}</div>
             <div class="parent-sub">${escapeHtml(formatParentLevels(p))} · ${p.child_age ? p.child_age+'세' : '나이 미입력'} · 제출 ${p.submission_count}건</div>
+            ${(p.workbook_purchases || []).map(b => `<div class="parent-sub">8주 완성 ${escapeHtml(b.workbook_level)} · ${escapeHtml(b.pass_type)} · ${b.remaining_uses}/${b.total_uses}회 · ${b.expires_on}까지</div>`).join('')}
             <div class="parent-sub" style="font-size:14px; margin-top:4px; color:${p.phone_number ? 'var(--text-muted)' : 'var(--coupon-red)'}; font-weight:${p.phone_number ? '400' : '600'}">${escapeHtml(p.phone_number || '전화번호 미등록 — 친구톡 불가')} · ${(p.kakao_user_id || '').startsWith('pending:') ? '채널 ID 미입력' : '채널 연결됨'}</div>
           </div>
           <div class="parent-actions">
@@ -1694,6 +1785,16 @@ function renderDirectUploadFiles() {
     preview.style.display = 'none';
     preview.innerHTML = '';
     return;
+  }
+  if (productChoice.startsWith('eight_week_workbook:')) {
+    const level = productChoice.split(':')[1];
+    const parent = cachedParents.find(p => String(p.id) === parentId);
+    const today = new Date().toLocaleDateString('en-CA', {timeZone:'Asia/Seoul'});
+    const hasBalance = (parent?.workbook_purchases || []).some(p => p.workbook_level === level && p.purchase_date <= today && p.expires_on >= today && p.remaining_uses > 0);
+    if (!hasBalance && !document.getElementById('upload-rework-select')?.value) {
+      toast('잔여 횟수가 없어 수정본 원본을 선택해야 합니다.', 3000);
+      return;
+    }
   }
 
   hint?.classList.add('is-hidden');
@@ -1757,10 +1858,15 @@ function resetDirectUploadFile() {
 
 async function createDirectSubmission() {
   const parentId = document.getElementById('upload-parent-select')?.value;
+  const productChoice = document.getElementById('upload-product-select')?.value || '';
   const btn = document.getElementById('direct-submit-btn');
 
   if (!parentId) {
     toast('학부모를 선택해주세요.', 2500);
+    return;
+  }
+  if (!productChoice) {
+    toast('교재를 선택해주세요.', 2500);
     return;
   }
   if (directUploadFiles.length === 0) {
@@ -1777,7 +1883,12 @@ async function createDirectSubmission() {
   btn.innerHTML = '<span class="spinner"></span> 생성 중...';
 
   try {
-    const result = await api(`/admin/submissions/upload?parent_id=${encodeURIComponent(parentId)}`, {
+    const [productType, workbookLevel] = productChoice.split(':');
+    const params = new URLSearchParams({parent_id: parentId, product_type: productType});
+    if (workbookLevel) params.set('workbook_level', workbookLevel);
+    const reworkId = document.getElementById('upload-rework-select')?.value;
+    if (workbookLevel && reworkId) params.set('rework_of_submission_id', reworkId);
+    const result = await api(`/admin/submissions/upload?${params}`, {
       method: 'POST',
       body: form,
     });
@@ -1827,8 +1938,10 @@ function renderSubmissionList(container, submissions) {
     const parent = s.parent;
     const childName = parent ? parent.child_name : '(미등록)';
     const parentName = parent ? `${parent.child_name} · ${parent.phone_number || ''}` : '';
-    const level = s.level || (parent && parent.level) || '-';
-    const stage = s.stage ? `${s.stage}단계` : '미지정';
+    const level = s.product_type === 'eight_week_workbook'
+      ? `8주 완성 · ${s.workbook_level || '-'}`
+      : `매주 3단어 · ${s.level || (parent && parent.level) || '-'}`;
+    const stage = s.product_type === 'eight_week_workbook' ? '' : (s.stage ? `${s.stage}단계` : '미지정');
 
     return `
       <div class="card">
@@ -1836,7 +1949,7 @@ function renderSubmissionList(container, submissions) {
           ${photoHtml}
           <div class="submission-info">
             <div class="child-name">${childName}</div>
-            <div class="sub-detail">${level} · ${stage} · ${formatDate(s.created_at)}</div>
+            <div class="sub-detail">${escapeHtml(level)} ${stage ? `· ${stage}` : ''} · ${formatDate(s.created_at)}</div>
             <div class="sub-detail" style="margin-top:2px">${parentName}</div>
           </div>
           <span class="status-badge status-${s.status}">${statusLabel(s.status)}</span>
@@ -1864,6 +1977,11 @@ async function openSubmission(id) {
 
 function renderSubmissionModal(s) {
   const parent = s.parent;
+  const isWorkbook = s.product_type === 'eight_week_workbook';
+  const workbookPasses = (parent?.workbook_purchases || []).filter(p => p.workbook_level === s.workbook_level);
+  const today = new Date().toLocaleDateString('en-CA', {timeZone:'Asia/Seoul'});
+  const availablePasses = workbookPasses.filter(p => p.purchase_date <= today && p.expires_on >= today && p.remaining_uses > 0);
+  const workbookRemain = availablePasses.reduce((sum, p) => sum + p.remaining_uses, 0);
   const childName = parent ? parent.child_name : '미등록';
   const childAge = parent ? parent.child_age : '-';
   const allowedLevels = getParentLevels(parent);
@@ -1919,7 +2037,7 @@ function renderSubmissionModal(s) {
       ` : ''}
 
       <details class="submission-settings" id="submission-settings"${settingsOpenAttr}>
-        <summary>설정 다시 보기 (레벨 · 미션 · 추가 지시)</summary>
+        <summary>설정 다시 보기 (${isWorkbook ? '8주 완성 교재 · 추가 지시' : '레벨 · 미션 · 추가 지시'})</summary>
         <div class="submission-settings-body">
           <div class="child-info-card">
             <div class="child-info-row">
@@ -1942,9 +2060,15 @@ function renderSubmissionModal(s) {
               <span class="label">제출 시각</span>
               <span class="value">${formatDate(s.created_at)}</span>
             </div>
+            <div class="child-info-row">
+              <span class="label">교재</span>
+              <span class="value">${isWorkbook ? `8주 완성 · ${escapeHtml(s.workbook_level || '-')}` : '매주 3단어'}</span>
+            </div>
           </div>
 
           ${isSent ? '<div class="sent-banner">이미 전송된 피드백입니다</div>' : ''}
+
+          ${isWorkbook ? `<div class="child-info-card"><strong>첨삭권 잔여 ${workbookRemain}회</strong><br>${workbookPasses.map(p => `${escapeHtml(p.pass_type)} · ${p.remaining_uses}/${p.total_uses}회 · ${p.expires_on}까지`).join('<br>')}</div>` : `
 
           <div class="child-info-card last-mission-card">
             <div class="child-info-row">
@@ -1982,10 +2106,11 @@ function renderSubmissionModal(s) {
               ${stageOptions}
             </select>
           </div>
+          `}
 
           <div class="form-group">
             <label>추가 지시사항 (선택)</label>
-            <textarea id="modal-extra" placeholder="예: 칭찬 위주로, 다음 미션 제안 포함 등">${s.extra_instruction || ''}</textarea>
+            <textarea id="modal-extra" placeholder="예: 칭찬 위주로">${escapeHtml(s.extra_instruction || '')}</textarea>
           </div>
 
           <div class="feedback-actions" style="margin-top:0;">
@@ -2067,8 +2192,7 @@ async function generateFeedback() {
     const result = await api(`/admin/submissions/${currentSubmissionId}/generate`, {
       method: 'POST',
       body: JSON.stringify({
-        level: selectedLevel,
-        stage: selectedStage,
+        ...(document.getElementById('modal-level-btns') ? {level: selectedLevel, stage: selectedStage} : {}),
         extra_instruction: extra,
       }),
     });
@@ -2161,6 +2285,8 @@ async function markSentManually() {
     toast('✅ 직접 전송 완료 처리되었습니다.');
     document.getElementById('modal-feedback').defaultValue = feedbackText;
     closeModal('submission-modal');
+    uploadReworksParentId = '';
+    await refreshParentsCache();
     loadPending();
     loadHistory();
   } catch (e) {
@@ -2196,6 +2322,8 @@ async function approveFeedback() {
     toast('✅ 피드백이 전송되었습니다!');
     document.getElementById('modal-feedback').defaultValue = feedbackText;
     closeModal('submission-modal');
+    uploadReworksParentId = '';
+    await refreshParentsCache();
     loadPending();
   } catch (e) {
     toast('❌ 전송 실패: ' + e.message, 4000);
@@ -2465,6 +2593,68 @@ async function importParentsBulk() {
   }
 }
 
+let workbookImportPreviewText = '';
+
+function openWorkbookImport() {
+  workbookImportPreviewText = '';
+  document.getElementById('workbook-import-text').value = '';
+  document.getElementById('workbook-import-result').textContent = '';
+  document.getElementById('workbook-import-save').disabled = true;
+  openModal('workbook-import-modal');
+}
+
+async function previewWorkbookImport() {
+  const value = document.getElementById('workbook-import-text').value.trim();
+  const resultEl = document.getElementById('workbook-import-result');
+  const saveBtn = document.getElementById('workbook-import-save');
+  saveBtn.disabled = true;
+  workbookImportPreviewText = '';
+  if (!value) {
+    resultEl.textContent = '고객 행을 붙여넣어 주세요.';
+    return;
+  }
+  try {
+    const result = await api('/admin/workbook-purchases/preview', {
+      method: 'POST', body: JSON.stringify({text: value}),
+    });
+    const lines = [`검사한 구매 내역 ${result.rows.length}건`];
+    result.rows.forEach(row => {
+      lines.push(`${row.line}행 · ${row.buyer_name} · ${row.workbook_level} · ${row.pass_type} · ${row.total_uses - row.opening_used}회 남음 · ${row.expires_on}까지`);
+      if (row.date_warning) lines.push('  ⚠ 구매일을 1일째로 센 60/180일째 날짜와 입력한 이용기한이 다릅니다.');
+    });
+    (result.errors || []).forEach(err => lines.push(`${err.line}행 오류: ${err.message}`));
+    resultEl.textContent = lines.join('\n');
+    if (result.rows.length && !result.errors.length) {
+      workbookImportPreviewText = value;
+      saveBtn.disabled = false;
+    }
+  } catch (e) {
+    resultEl.textContent = `검사 실패: ${e.message}`;
+  }
+}
+
+async function saveWorkbookImport() {
+  const value = document.getElementById('workbook-import-text').value.trim();
+  if (!workbookImportPreviewText || value !== workbookImportPreviewText) {
+    toast('변경된 내용을 다시 확인해주세요.');
+    return;
+  }
+  const btn = document.getElementById('workbook-import-save');
+  btn.disabled = true;
+  try {
+    const result = await api('/admin/workbook-purchases/import', {
+      method: 'POST', body: JSON.stringify({text: value}),
+    });
+    document.getElementById('workbook-import-result').textContent = `저장 ${result.created}건 · 기존 구매 중복 ${result.skipped}건`;
+    workbookImportPreviewText = '';
+    await refreshParentsCache();
+    toast(`8주 완성 구매 ${result.created}건 저장`);
+  } catch (e) {
+    document.getElementById('workbook-import-result').textContent = `저장 실패: ${e.message}`;
+    btn.disabled = false;
+  }
+}
+
 function openAddParent() {
   currentParentId = null;
   document.getElementById('parent-modal-title').textContent = '학부모 개별 추가';
@@ -2638,6 +2828,7 @@ document.addEventListener('DOMContentLoaded', () => {
   loadPending();
 
   document.getElementById('upload-parent-search')?.addEventListener('input', renderUploadParentSelect);
+  document.getElementById('upload-parent-select')?.addEventListener('change', refreshUploadChoices);
   document.getElementById('parents-search')?.addEventListener('input', renderParentsList);
 
   const photoInput = document.getElementById('direct-photo-input');

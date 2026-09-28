@@ -15,7 +15,9 @@ from fastapi.testclient import TestClient
 
 import routers.admin as admin_router
 import routers.kakao as kakao_router
-from database import Base, Parent, SessionLocal, Submission, engine
+from database import Base, Parent, SessionLocal, Submission, WorkbookPurchase, WorkbookUse, engine
+from workbook_service import seoul_date
+from datetime import timedelta
 from main import app
 import storage_r2_archive
 import storage_slack_alert
@@ -947,3 +949,110 @@ def test_admin_upload_multiple_images_creates_one_submission():
     assert submission.parent_id == parent_id
     assert submission.status == "pending"
     assert len(admin_router.get_submission_photo_paths(submission)) == 2
+
+
+def test_workbook_import_links_existing_parent_without_changing_weekly_level():
+    parent_id = create_parent()
+    bought = seoul_date() - timedelta(days=2)
+    expires = bought + timedelta(days=180)
+    row = "\t".join([
+        "구매자", "010-1234-5678", "알차게", "카톡", "8회권",
+        bought.isoformat(), "TRUE", "TRUE", "8", "2", "6",
+        expires.isoformat(), "FALSE", "FALSE", "",
+    ])
+    result = client.post("/admin/workbook-purchases/import", json={"text": row})
+    assert result.status_code == 200
+    assert result.json()["created"] == 1
+    repeated = client.post("/admin/workbook-purchases/import", json={"text": row})
+    assert repeated.json()["skipped"] == 1
+    parent = client.get(f"/admin/parents/{parent_id}").json()
+    assert parent["level"] == "표현력"
+    assert parent["child_name"] == "민준"
+    assert parent["workbook_purchases"][0]["remaining_uses"] == 6
+
+
+def test_workbook_upload_prompt_and_manual_send_deduct_once(monkeypatch):
+    parent_id = create_parent()
+    db = SessionLocal()
+    db.add(WorkbookPurchase(
+        parent_id=parent_id, buyer_name="구매자", workbook_level="가볍게",
+        channel="카톡", pass_type="교재만", purchase_date=seoul_date(),
+        expires_on=seoul_date() + timedelta(days=60), total_uses=1, opening_used=0,
+    ))
+    db.add(Submission(parent_id=parent_id, product_type="weekly_words",
+                      feedback_draft="매주 3단어의 이전 피드백", status="sent"))
+    db.commit()
+    db.close()
+
+    upload = client.post(
+        f"/admin/submissions/upload?parent_id={parent_id}&product_type=eight_week_workbook&workbook_level=가볍게",
+        files={"photo": ("worksheet.png", b"image-bytes", "image/png")},
+    )
+    assert upload.status_code == 201
+    submission_id = upload.json()["id"]
+    assert client.get(f"/admin/submissions/{submission_id}").json()["workbook_level"] == "가볍게"
+
+    captured = {}
+    monkeypatch.setattr(admin_router, "generate_feedback",
+                        lambda **kwargs: captured.update(kwargs) or "8주 완성 피드백")
+    generated = client.post(f"/admin/submissions/{submission_id}/generate", json={})
+    assert generated.status_code == 200
+    assert captured["workbook_level"] == "가볍게"
+    assert captured["previous_feedbacks"] == []
+
+    sent = client.post(f"/admin/submissions/{submission_id}/mark-sent", json={})
+    assert sent.status_code == 200
+    assert client.post(f"/admin/submissions/{submission_id}/mark-sent", json={}).status_code == 400
+    db = SessionLocal()
+    assert db.query(WorkbookUse).count() == 1
+    assert db.query(WorkbookPurchase).one().opening_used == 0
+    db.close()
+    parent = client.get(f"/admin/parents/{parent_id}").json()
+    assert parent["workbook_purchases"][0]["remaining_uses"] == 0
+
+
+def test_workbook_import_rejects_inconsistent_balance():
+    row = "\t".join([
+        "구매자", "010-2222-3333", "완벽하게", "문자", "8회권",
+        "2026. 9. 22", "FALSE", "FALSE", "8", "2", "8",
+        "2027. 3. 20", "FALSE", "FALSE", "",
+    ])
+    result = client.post("/admin/workbook-purchases/import", json={"text": row})
+    assert result.status_code == 400
+    db = SessionLocal()
+    assert db.query(WorkbookPurchase).count() == 0
+    db.close()
+
+
+def test_workbook_revision_uses_original_pass_without_second_deduction():
+    parent_id = create_parent()
+    db = SessionLocal()
+    purchase = WorkbookPurchase(
+        parent_id=parent_id, buyer_name="구매자", workbook_level="가볍게",
+        channel="카톡", pass_type="교재만", purchase_date=seoul_date(),
+        expires_on=seoul_date() + timedelta(days=60), total_uses=1, opening_used=0,
+    )
+    db.add(purchase)
+    db.flush()
+    origin = Submission(parent_id=parent_id, product_type="eight_week_workbook",
+                        workbook_level="가볍게", status="sent", feedback_draft="첫 첨삭")
+    db.add(origin)
+    db.flush()
+    db.add(WorkbookUse(purchase_id=purchase.id, submission_id=origin.id))
+    db.commit()
+    origin_id = origin.id
+    db.close()
+
+    revision = client.post(
+        f"/admin/submissions/upload?parent_id={parent_id}&product_type=eight_week_workbook"
+        f"&workbook_level=가볍게&rework_of_submission_id={origin_id}",
+        files={"photo": ("revision.png", b"image-bytes", "image/png")},
+    )
+    assert revision.status_code == 201
+    revision_id = revision.json()["id"]
+    sent = client.post(f"/admin/submissions/{revision_id}/mark-sent",
+                       json={"feedback_text": "수정본 피드백"})
+    assert sent.status_code == 200
+    db = SessionLocal()
+    assert db.query(WorkbookUse).count() == 1
+    db.close()

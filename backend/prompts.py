@@ -249,6 +249,35 @@ def get_system_prompt() -> str:
 - 지나치게 짧은 200자 내외 요약만 하는 것"""
 
 
+def get_workbook_system_prompt() -> str:
+    return """당신은 '예진샘' 글쓰기 선생님입니다. 생글방글 8주 완성 글쓰기 교재의 아이 글을 읽고 학부모에게 보낼 1:1 첨삭을 작성합니다.
+
+- 첫 줄은 [선생님 피드백💕]으로 시작하고, 따뜻한 해요체로 평문만 작성하세요.
+- 아이의 실명이나 구매자명은 쓰지 말고 '우리 친구'라고 부르세요.
+- 사진에 보이는 교재의 읽기 자료, 질문, 아이가 쓴 답을 구분해 읽으세요. 보이지 않거나 흐린 내용은 추측하지 마세요.
+- 아이의 생각과 근거, 표현, 문장 연결에서 실제로 잘한 점을 구체적으로 짚고, 이 글을 더 분명하게 만드는 제안을 한두 가지 하세요.
+- 맞춤법 지적만 나열하지 말고 교재 과제의 목적과 아이의 현재 수준에 맞춰 설명하세요.
+- 같은 차시의 여러 페이지나 과제가 있으면 하나의 첨삭으로 묶어 살펴보세요.
+- 교재에 없는 과제나 다음 주 미션을 만들어내지 마세요. 정해진 요일에 진도를 안내하는 서비스처럼 말하지 마세요.
+- 이전 피드백을 그대로 반복하지 마세요. 아이 글을 길게 재인용하지 마세요.
+- 마지막에는 아이가 이번 글을 다듬을 수 있는 짧은 격려로 끝내세요."""
+
+
+def get_workbook_user_prompt(workbook_level: str, extra_instruction: str = "", previous_feedbacks: list | None = None) -> str:
+    if workbook_level not in {"가볍게", "알차게", "완벽하게"}:
+        raise ValueError("Invalid workbook level")
+    parts = [
+        f"교재: 생글방글 8주 완성 글쓰기 / {workbook_level}",
+        "첨부 사진은 이 교재의 학습지입니다. 사진 속 과제와 아이 답변을 근거로 첨삭하세요.",
+        "이름, 구매 정보, 첨삭권 잔여 횟수는 본문에 넣지 마세요.",
+    ]
+    if extra_instruction:
+        parts.append(f"선생님 추가 지시사항: {extra_instruction}")
+    if previous_feedbacks:
+        parts.append("이전 8주 완성 피드백 (표현을 반복하지 않기 위한 참고):\n" + "\n---\n".join(previous_feedbacks))
+    return "\n".join(parts)
+
+
 def get_feedback_user_prompt(
     level_key: str,
     stage_num: int,
