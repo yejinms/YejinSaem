@@ -330,6 +330,19 @@
       transition: background var(--motion-fast) var(--ease-standard);
     }
     .upload-remove-btn:hover { background: var(--text); }
+    #admin-login-dialog {
+      position: fixed;
+      inset: 0;
+      margin: auto;
+      width: min(90vw, 360px);
+      max-height: calc(100dvh - 32px);
+      padding: 24px;
+      overflow-y: auto;
+      border: 0;
+      border-radius: 16px;
+      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.25);
+    }
+    #admin-login-dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
     .thumb-count {
       position: absolute;
       right: 4px;
@@ -1143,11 +1156,11 @@
           <select id="upload-rework-select" aria-label="수정본 원본 첨삭"></select>
         </div>
       </div>
-      <div class="upload-empty-hint" id="upload-empty-hint">사진을 선택해 제출을 만들어 주세요.</div>
-      <div class="upload-preview" id="upload-preview"></div>
+      <div class="upload-empty-hint" id="upload-empty-hint">사진을 선택하거나 붙여넣어 제출을 만들어 주세요.</div>
+      <div class="upload-preview" id="upload-preview" aria-live="polite"></div>
       <input type="file" id="direct-photo-input" accept="image/*" multiple style="display:none" />
       <div class="upload-actions">
-        <button type="button" class="btn btn-outline" onclick="chooseDirectPhoto()">사진 선택</button>
+        <button type="button" class="btn btn-outline" id="direct-photo-add-btn" onclick="chooseDirectPhoto()">사진 선택</button>
         <button type="button" class="btn btn-primary" id="direct-submit-btn" onclick="createDirectSubmission()">제출 만들기</button>
       </div>
     </div>
@@ -1367,7 +1380,7 @@
   </div>
 </div>
 
-<dialog id="admin-login-dialog" style="border:0; border-radius:16px; padding:24px; width:min(90vw,360px); box-shadow:0 16px 48px rgba(0,0,0,.25)">
+<dialog id="admin-login-dialog">
   <form id="admin-login-form">
     <h2 style="margin:0 0 8px; font-size:20px">관리자 로그인</h2>
     <p id="admin-login-message" style="margin:0 0 16px; color:var(--text-muted)">관리자 비밀번호를 입력해주세요.</p>
@@ -1899,31 +1912,23 @@ function chooseDirectPhoto() {
 function renderDirectUploadFiles() {
   const hint = document.getElementById('upload-empty-hint');
   const preview = document.getElementById('upload-preview');
+  const addButton = document.getElementById('direct-photo-add-btn');
   if (!preview) return;
 
   if (directUploadFiles.length === 0) {
     hint?.classList.remove('is-hidden');
+    if (addButton) addButton.textContent = '사진 선택';
     preview.style.display = 'none';
     preview.innerHTML = '';
     return;
   }
-  if (productChoice.startsWith('eight_week_workbook:')) {
-    const level = productChoice.split(':')[1];
-    const parent = cachedParents.find(p => String(p.id) === parentId);
-    const today = new Date().toLocaleDateString('en-CA', {timeZone:'Asia/Seoul'});
-    const hasBalance = (parent?.workbook_purchases || []).some(p => p.workbook_level === level && p.purchase_date <= today && p.expires_on >= today && p.remaining_uses > 0);
-    if (!hasBalance && !document.getElementById('upload-rework-select')?.value) {
-      toast('잔여 횟수가 없어 수정본 원본을 선택해야 합니다.', 3000);
-      return;
-    }
-  }
-
   hint?.classList.add('is-hidden');
+  if (addButton) addButton.textContent = `사진 더 추가 (${directUploadFiles.length}/${MAX_DIRECT_UPLOAD_IMAGES})`;
   preview.style.display = 'grid';
   preview.innerHTML = directUploadFiles.map(item => `
     <div class="upload-preview-item">
       <img src="${item.previewUrl}" alt="${escapeHtml(item.file.name || '업로드 이미지')}" />
-      <button class="upload-remove-btn" type="button" onclick="removeDirectUploadFile(${item.id})" aria-label="이미지 삭제">×</button>
+      <button class="upload-remove-btn" type="button" onclick="removeDirectUploadFile(${item.id})" aria-label="${escapeHtml(item.file.name || '선택한 이미지')} 삭제">×</button>
       <div class="upload-preview-name">${escapeHtml(item.file.name || '선택한 이미지')}</div>
     </div>
   `).join('');
@@ -3015,6 +3020,18 @@ document.addEventListener('DOMContentLoaded', () => {
   photoInput?.addEventListener('change', e => {
     addDirectUploadFiles(e.target.files);
     e.target.value = '';
+  });
+  document.addEventListener('paste', e => {
+    if (!document.getElementById('panel-pending')?.classList.contains('active')) return;
+    const target = e.target;
+    if (target?.closest?.('input, textarea, select, [contenteditable="true"], dialog')) return;
+    const images = Array.from(e.clipboardData?.items || [])
+      .filter(item => item.kind === 'file' && item.type.startsWith('image/'))
+      .map(item => item.getAsFile())
+      .filter(Boolean);
+    if (images.length === 0) return;
+    e.preventDefault();
+    addDirectUploadFiles(images);
   });
 
   setInterval(() => {
