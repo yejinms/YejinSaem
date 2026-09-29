@@ -1028,6 +1028,8 @@ def test_parent_edit_updates_workbook_purchase_without_losing_weekly_data():
 
 
 def test_workbook_upload_prompt_and_manual_send_deduct_once(monkeypatch):
+    sync_calls = []
+    monkeypatch.setattr(admin_router, "sync_workbook_sheet_now", lambda: sync_calls.append(True))
     parent_id = create_parent()
     db = SessionLocal()
     db.add(WorkbookPurchase(
@@ -1059,6 +1061,7 @@ def test_workbook_upload_prompt_and_manual_send_deduct_once(monkeypatch):
     sent = client.post(f"/admin/submissions/{submission_id}/mark-sent", json={})
     assert sent.status_code == 200
     assert client.post(f"/admin/submissions/{submission_id}/mark-sent", json={}).status_code == 400
+    assert sync_calls == [True]
     db = SessionLocal()
     assert db.query(WorkbookUse).count() == 1
     assert db.query(WorkbookPurchase).one().opening_used == 0
