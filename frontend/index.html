@@ -4,6 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>생글방글 첨삭 관리자</title>
+  <script>
+    // API calls use this page's origin; a local HTML file has no API server.
+    if (location.protocol === 'file:') {
+      location.replace('http://127.0.0.1:8000/');
+    }
+  </script>
   <link rel="icon" href="data:," />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
