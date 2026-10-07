@@ -2117,10 +2117,12 @@ function renderSubmissionModal(s) {
   const childName = parent ? parent.child_name : '미등록';
   const childAge = parent ? parent.child_age : '-';
   const allowedLevels = getParentLevels(parent);
-  let currentLevel = s.level || (parent && parent.level) || allowedLevels[0] || '표현력';
-  if (!allowedLevels.includes(currentLevel)) currentLevel = allowedLevels[0];
-  const currentStage = s.stage || 1;
   const lastMission = s.last_selected_mission || null;
+  const useLastMission = !s.stage && lastMission && allowedLevels.includes(lastMission.level)
+    && LEVELS[lastMission.level]?.stages?.[lastMission.stage];
+  let currentLevel = useLastMission ? lastMission.level : (s.level || (parent && parent.level) || allowedLevels[0] || '표현력');
+  if (!allowedLevels.includes(currentLevel)) currentLevel = allowedLevels[0];
+  const currentStage = s.stage || (useLastMission ? lastMission.stage : 1);
 
   selectedLevel = currentLevel;
   selectedStage = currentStage;
