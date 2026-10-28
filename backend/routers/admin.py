@@ -23,7 +23,7 @@ from database import Parent, Submission, WorkbookPurchase, WorkbookUse, get_db
 from datetime_utils import to_utc_iso
 from levels_utils import apply_parent_levels, parent_levels_for_api, resolve_levels_input
 from mission_history import get_last_selected_mission
-from parent_import import import_parents_from_text
+from parent_import import import_parents_from_text, merge_parents_by_phone, parse_bulk_parent_rows
 from storage_maintenance import (
     cleanup_storage,
     create_photos_backup_zip,
@@ -58,6 +58,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(verify_admin)])
 sheet_router = APIRouter(prefix="/workbook-sheet", tags=["workbook-sheet"])
+customer_sheet_router = APIRouter(prefix="/customer-sheet", tags=["customer-sheet"])
 
 MAX_SUBMISSION_IMAGES = 10
 
@@ -124,6 +125,10 @@ class ParentBulkImportRequest(BaseModel):
 
 class WorkbookImportRequest(BaseModel):
     text: str
+
+
+class SheetCustomerImportRequest(BaseModel):
+    rows: list[list[str]]
 
 
 class StorageCleanupRequest(BaseModel):
@@ -657,6 +662,56 @@ def verify_sheet_sync_token(authorization: str | None = Header(default=None)) ->
     provided = (authorization or "").removeprefix("Bearer ").strip()
     if not authorization or not authorization.startswith("Bearer ") or not hmac.compare_digest(provided, token):
         raise HTTPException(status_code=401, detail="시트 동기화 인증에 실패했습니다.")
+
+
+def verify_customer_sheet_token(authorization: str | None = Header(default=None)) -> None:
+    token = os.getenv("CUSTOMER_SHEET_IMPORT_TOKEN", "").strip()
+    if not token:
+        raise HTTPException(status_code=503, detail="고객 시트 가져오기가 설정되지 않았습니다.")
+    provided = (authorization or "").removeprefix("Bearer ").strip()
+    if not authorization or not authorization.startswith("Bearer ") or not hmac.compare_digest(provided, token):
+        raise HTTPException(status_code=401, detail="고객 시트 가져오기 인증에 실패했습니다.")
+
+
+def customer_sheet_text(rows: list[list[str]], width: int) -> str:
+    if not rows or len(rows) > 1500:
+        raise HTTPException(status_code=400, detail="가져올 행은 1~1500개여야 합니다.")
+    if any(len(row) != width or any(not isinstance(cell, str) for cell in row) for row in rows):
+        raise HTTPException(status_code=400, detail=f"각 행은 문자열 {width}개 열이어야 합니다.")
+    return "\n".join("\t".join(cell.replace("\t", " ").replace("\n", " ").strip() for cell in row) for row in rows)
+
+
+@customer_sheet_router.post("/weekly", dependencies=[Depends(verify_customer_sheet_token)])
+def import_weekly_customer_sheet(body: SheetCustomerImportRequest, db: Session = Depends(get_db)):
+    """Idempotent Sheet registration; does not trigger weekly messages."""
+    text = customer_sheet_text(body.rows, 6)
+    if any(not row[0].strip() or not row[1].strip() or row[5].strip() not in {"표현력", "기초", "심화", "패키지"} for row in body.rows):
+        raise HTTPException(status_code=400, detail="구매자·연락처·상품을 확인해주세요.")
+    result = import_parents_from_text(db, text)
+    if result["errors"]:
+        raise HTTPException(status_code=400, detail={"message": "매주 3단어 행을 확인해주세요.", "errors": result["errors"]})
+    parsed, _ = parse_bulk_parent_rows(text)
+    for item in merge_parents_by_phone(parsed):
+        parent = db.query(Parent).filter(Parent.phone_number == item["phone_number"]).first()
+        if not parent or not parent.weekly_words_enabled:
+            continue
+        current = parent_levels_for_api(parent)
+        merged = validate_levels(current + item["levels"])
+        if merged != current:
+            apply_parent_levels(parent, merged)
+            result["updated"] += 1
+            result["skipped"] -= 1
+    db.commit()
+    return {key: result[key] for key in ("created", "updated", "skipped", "failed")}
+
+
+@customer_sheet_router.post("/workbook", dependencies=[Depends(verify_customer_sheet_token)])
+def import_workbook_customer_sheet(body: SheetCustomerImportRequest, db: Session = Depends(get_db)):
+    """Registers purchases only; feedback balances remain web DB authoritative."""
+    result = import_purchase_rows(db, customer_sheet_text(body.rows, 15))
+    if result["errors"]:
+        raise HTTPException(status_code=400, detail={"message": "8주 완성 행을 확인해주세요.", "errors": result["errors"]})
+    return {key: result[key] for key in ("created", "skipped")}
 
 
 @sheet_router.get("/balances", dependencies=[Depends(verify_sheet_sync_token)])

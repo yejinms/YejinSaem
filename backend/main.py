@@ -59,6 +59,7 @@ app.add_middleware(
 app.include_router(kakao.router)
 app.include_router(admin.router)
 app.include_router(admin.sheet_router)
+app.include_router(admin.customer_sheet_router)
 app.include_router(parents.router)
 
 # Serve uploaded images as static files

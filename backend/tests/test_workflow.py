@@ -26,6 +26,53 @@ import storage_slack_alert
 client = TestClient(app)
 
 
+def test_customer_sheet_import_requires_separate_token(monkeypatch):
+    monkeypatch.delenv("CUSTOMER_SHEET_IMPORT_TOKEN", raising=False)
+    rows = [["구매자", "010-9999-0040", "", "", "카톡", "심화"]]
+    assert client.post("/customer-sheet/weekly", json={"rows": rows}).status_code == 503
+    monkeypatch.setenv("CUSTOMER_SHEET_IMPORT_TOKEN", "sheet-import-test")
+    assert client.post("/customer-sheet/weekly", json={"rows": rows}).status_code == 401
+
+
+def test_customer_sheet_import_links_both_products_idempotently(monkeypatch):
+    monkeypatch.setenv("CUSTOMER_SHEET_IMPORT_TOKEN", "sheet-import-test")
+    headers = {"Authorization": "Bearer sheet-import-test"}
+    workbook = [["구매자", "010-9999-0041", "가볍게", "카톡", "교재만",
+                 "2026. 9. 22", "TRUE", "TRUE", "1", "0", "1",
+                 "2026. 11. 20", "FALSE", "FALSE", ""]]
+    weekly = [["구매자", "010-9999-0041", "", "", "카톡", "심화"]]
+    first = client.post("/customer-sheet/workbook", json={"rows": workbook}, headers=headers)
+    assert first.status_code == 200 and first.json()["created"] == 1
+    connected = client.post("/customer-sheet/weekly", json={"rows": weekly}, headers=headers)
+    assert connected.status_code == 200 and connected.json()["updated"] == 1
+    repeated = client.post("/customer-sheet/workbook", json={"rows": workbook}, headers=headers)
+    assert repeated.status_code == 200 and repeated.json()["skipped"] == 1
+    parent = client.get("/admin/parents").json()[0]
+    assert parent["weekly_words_enabled"] is True
+    assert len(parent["workbook_purchases"]) == 1
+
+
+def test_customer_sheet_rejects_unknown_weekly_product(monkeypatch):
+    monkeypatch.setenv("CUSTOMER_SHEET_IMPORT_TOKEN", "sheet-import-test")
+    response = client.post("/customer-sheet/weekly", json={"rows": [
+        ["구매자", "010-9999-0042", "", "", "카톡", "모르는 상품"]
+    ]}, headers={"Authorization": "Bearer sheet-import-test"})
+    assert response.status_code == 400
+
+
+def test_customer_sheet_adds_new_weekly_level_for_existing_customer(monkeypatch):
+    monkeypatch.setenv("CUSTOMER_SHEET_IMPORT_TOKEN", "sheet-import-test")
+    headers = {"Authorization": "Bearer sheet-import-test"}
+    first = [["구매자", "010-9999-0043", "", "", "카톡", "표현력"]]
+    second = first + [["구매자", "010-9999-0043", "", "", "카톡", "심화"]]
+    assert client.post("/customer-sheet/weekly", json={"rows": first}, headers=headers).json()["created"] == 1
+    added = client.post("/customer-sheet/weekly", json={"rows": second}, headers=headers)
+    assert added.status_code == 200 and added.json()["updated"] == 1
+    parent = client.get("/admin/parents").json()[0]
+    assert parent["levels"] == ["표현력", "초등심화"]
+    assert client.post("/customer-sheet/weekly", json={"rows": second}, headers=headers).json()["updated"] == 0
+
+
 def setup_function():
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
