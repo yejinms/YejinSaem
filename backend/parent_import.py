@@ -176,7 +176,7 @@ def import_parents_from_text(
     if channel_filter:
         merged = filter_by_channel(merged, channel_filter)
 
-    created = skipped = failed = 0
+    created = updated = skipped = failed = 0
     results: list[dict] = []
 
     for parent in merged:
@@ -184,6 +184,31 @@ def import_parents_from_text(
             db.query(Parent).filter(Parent.phone_number == parent["phone_number"]).first()
         )
         if existing:
+            if not existing.weekly_words_enabled:
+                try:
+                    apply_parent_levels(existing, validate_levels(parent["levels"]))
+                    existing.weekly_words_enabled = True
+                    db.commit()
+                    updated += 1
+                    results.append(
+                        {
+                            "phone_number": parent["phone_number"],
+                            "child_name": existing.child_name,
+                            "levels": parent["levels"],
+                            "updated": True,
+                        }
+                    )
+                except Exception as exc:
+                    db.rollback()
+                    failed += 1
+                    detail = getattr(exc, "detail", str(exc))
+                    parse_errors.append(
+                        {
+                            "line": parent.get("source_lines", [None])[0],
+                            "message": f"{parent['child_name']} ({parent['phone_number']}): {detail}",
+                        }
+                    )
+                continue
             skipped += 1
             results.append(
                 {
@@ -212,6 +237,7 @@ def import_parents_from_text(
                 }
             )
         except Exception as exc:
+            db.rollback()
             failed += 1
             detail = getattr(exc, "detail", str(exc))
             parse_errors.append(
@@ -224,10 +250,10 @@ def import_parents_from_text(
     return {
         "created": created,
         "skipped": skipped,
-        "updated": 0,
+        "updated": updated,
         "failed": failed,
         "parsed_rows": len(rows),
-        "imported": created,
+        "imported": created + updated,
         "attempted": len(merged),
         "errors": parse_errors,
         "results": results,

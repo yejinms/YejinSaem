@@ -158,6 +158,39 @@ def test_bulk_import_parents_from_paste():
     assert body2["skipped"] == 1
 
 
+def test_weekly_bulk_import_connects_existing_workbook_only_parent():
+    bought = seoul_date() - timedelta(days=2)
+    workbook_row = "\t".join([
+        "구매자", "010-9999-0002", "알차게", "카톡", "8회권",
+        bought.isoformat(), "TRUE", "FALSE", "8", "0", "8",
+        (bought + timedelta(days=179)).isoformat(), "FALSE", "FALSE", "",
+    ])
+    imported = client.post("/admin/workbook-purchases/import", json={"text": workbook_row})
+    assert imported.status_code == 200
+    before = next(p for p in client.get("/admin/parents").json()
+                  if p["phone_number"] == "01099990002")
+    assert before["weekly_words_enabled"] is False
+    assert len(before["workbook_purchases"]) == 1
+
+    weekly_row = "구매자\t010-9999-0002\t0\t태그\t카톡\t심화\n"
+    connected = client.post("/admin/parents/bulk-import", json={"text": weekly_row})
+    assert connected.status_code == 200
+    assert {key: connected.json()[key] for key in ("created", "updated", "skipped")} == {
+        "created": 0, "updated": 1, "skipped": 0,
+    }
+    after = client.get(f"/admin/parents/{before['id']}").json()
+    assert after["weekly_words_enabled"] is True
+    assert after["levels"] == ["초등심화"]
+    assert after["child_name"] == before["child_name"]
+    assert len(after["workbook_purchases"]) == 1
+
+    repeated = client.post("/admin/parents/bulk-import", json={"text": weekly_row})
+    assert repeated.status_code == 200
+    assert {key: repeated.json()[key] for key in ("created", "updated", "skipped")} == {
+        "created": 0, "updated": 0, "skipped": 1,
+    }
+
+
 def test_parent_create_with_multiple_levels():
     created = client.post(
         "/admin/parents",
