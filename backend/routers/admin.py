@@ -35,6 +35,7 @@ from services.claude_service import generate_feedback, get_anthropic_key_status
 from services.outbound_privacy import sanitize_channel_feedback
 from services.kakao_service import send_feedback_message
 from services.parent_match import is_pending_kakao_user_id, pending_kakao_user_id
+from services.workbook_sheet_sync import sync_workbook_sheet_now
 from upload_paths import (
     delete_submission_photo_files,
     get_submission_photo_paths,
@@ -252,6 +253,8 @@ def send_submission_feedback(submission: Submission, feedback_text: str, db: Ses
             record_use(db, submission)
         submission.status = "sent"
         db.commit()
+        if submission.product_type == PRODUCT_WORKBOOK and not submission.rework_of_submission_id:
+            sync_workbook_sheet_now()
         return {
             "id": submission.id,
             "status": "sent",
@@ -530,6 +533,8 @@ def mark_submission_sent_manually(
     s.status = "sent"
     db.commit()
     db.refresh(s)
+    if s.product_type == PRODUCT_WORKBOOK and not s.rework_of_submission_id:
+        sync_workbook_sheet_now()
 
     return {
         "id": s.id,

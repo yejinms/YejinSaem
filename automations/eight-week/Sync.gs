@@ -4,7 +4,7 @@
  * Script Properties: WEB_API_BASE (deployed web URL), WEB_SHEET_SYNC_TOKEN.
  * This script does not send messages or change the existing reminder trigger.
  */
-function syncEightWeekBalancesFromWeb() {
+function syncEightWeekBalancesFromWeb(spreadsheetId) {
   const columns = {phone: 2, level: 3, type: 5, purchaseDate: 6,
                    total: 9, used: 10, remain: 11, lastReminder: 14};
   const props = PropertiesService.getScriptProperties();
@@ -29,7 +29,9 @@ function syncEightWeekBalancesFromWeb() {
     byKey.set(key, item);
   }
 
-  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const spreadsheet = spreadsheetId
+    ? SpreadsheetApp.openById(spreadsheetId)
+    : SpreadsheetApp.getActiveSpreadsheet();
   const sheet = spreadsheet.getSheetByName('8주완성 고객관리');
   if (!sheet) throw new Error('8주완성 고객관리 시트를 찾을 수 없습니다.');
   const sheetTimezone = spreadsheet.getSpreadsheetTimeZone();
@@ -73,4 +75,29 @@ function syncEightWeekBalancesFromWeb() {
 
 function digits_(value) {
   return String(value || '').replace(/\D/g, '');
+}
+
+/** Called by the web server only after a new workbook feedback use is committed. */
+function doPost(e) {
+  const expected = PropertiesService.getScriptProperties().getProperty('WEB_SHEET_SYNC_TOKEN');
+  let token = '';
+  try {
+    token = JSON.parse(e && e.postData && e.postData.contents || '{}').token || '';
+  } catch (error) {
+    // Invalid requests must not run a sync.
+  }
+  if (!expected || token !== expected) return syncResponse_({ok: false, error: 'unauthorized'});
+  try {
+    // A bound script has no active spreadsheet when called as a web app.
+    syncEightWeekBalancesFromWeb('1MwUCM3EmEPQLqBDCnyS2046vmURDqXb8MP2uEWxJbpw');
+    return syncResponse_({ok: true});
+  } catch (error) {
+    console.error('8-week Sheet push failed: ' + error);
+    return syncResponse_({ok: false, error: 'sync_failed'});
+  }
+}
+
+function syncResponse_(data) {
+  return ContentService.createTextOutput(JSON.stringify(data))
+    .setMimeType(ContentService.MimeType.JSON);
 }
