@@ -30,13 +30,15 @@ def test_customer_sheet_import_requires_separate_token(monkeypatch):
     monkeypatch.delenv("CUSTOMER_SHEET_IMPORT_TOKEN", raising=False)
     rows = [["구매자", "010-9999-0040", "", "", "카톡", "심화"]]
     assert client.post("/customer-sheet/weekly", json={"rows": rows}).status_code == 503
-    monkeypatch.setenv("CUSTOMER_SHEET_IMPORT_TOKEN", "sheet-import-test")
+    monkeypatch.setenv("CUSTOMER_SHEET_IMPORT_TOKEN", "1234")
+    assert client.post("/customer-sheet/weekly", json={"rows": rows}, headers={"Authorization": "Bearer 1234"}).status_code == 503
+    monkeypatch.setenv("CUSTOMER_SHEET_IMPORT_TOKEN", "sheet-import-test-token-at-least-32-chars")
     assert client.post("/customer-sheet/weekly", json={"rows": rows}).status_code == 401
 
 
 def test_customer_sheet_import_links_both_products_idempotently(monkeypatch):
-    monkeypatch.setenv("CUSTOMER_SHEET_IMPORT_TOKEN", "sheet-import-test")
-    headers = {"Authorization": "Bearer sheet-import-test"}
+    monkeypatch.setenv("CUSTOMER_SHEET_IMPORT_TOKEN", "sheet-import-test-token-at-least-32-chars")
+    headers = {"Authorization": "Bearer sheet-import-test-token-at-least-32-chars"}
     workbook = [["구매자", "010-9999-0041", "가볍게", "카톡", "교재만",
                  "2026. 9. 22", "TRUE", "TRUE", "1", "0", "1",
                  "2026. 11. 20", "FALSE", "FALSE", ""]]
@@ -53,16 +55,16 @@ def test_customer_sheet_import_links_both_products_idempotently(monkeypatch):
 
 
 def test_customer_sheet_rejects_unknown_weekly_product(monkeypatch):
-    monkeypatch.setenv("CUSTOMER_SHEET_IMPORT_TOKEN", "sheet-import-test")
+    monkeypatch.setenv("CUSTOMER_SHEET_IMPORT_TOKEN", "sheet-import-test-token-at-least-32-chars")
     response = client.post("/customer-sheet/weekly", json={"rows": [
         ["구매자", "010-9999-0042", "", "", "카톡", "모르는 상품"]
-    ]}, headers={"Authorization": "Bearer sheet-import-test"})
+    ]}, headers={"Authorization": "Bearer sheet-import-test-token-at-least-32-chars"})
     assert response.status_code == 400
 
 
 def test_customer_sheet_adds_new_weekly_level_for_existing_customer(monkeypatch):
-    monkeypatch.setenv("CUSTOMER_SHEET_IMPORT_TOKEN", "sheet-import-test")
-    headers = {"Authorization": "Bearer sheet-import-test"}
+    monkeypatch.setenv("CUSTOMER_SHEET_IMPORT_TOKEN", "sheet-import-test-token-at-least-32-chars")
+    headers = {"Authorization": "Bearer sheet-import-test-token-at-least-32-chars"}
     first = [["구매자", "010-9999-0043", "", "", "카톡", "표현력"]]
     second = first + [["구매자", "010-9999-0043", "", "", "카톡", "심화"]]
     assert client.post("/customer-sheet/weekly", json={"rows": first}, headers=headers).json()["created"] == 1

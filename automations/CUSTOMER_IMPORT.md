@@ -9,7 +9,7 @@
 
 설정:
 
-1. Railway 운영 환경에 임의 생성한 긴 비밀값을 `CUSTOMER_SHEET_IMPORT_TOKEN`으로 저장한다.
+1. Railway 운영 환경에 임의 생성한 32자 이상의 긴 비밀값을 `CUSTOMER_SHEET_IMPORT_TOKEN`으로 저장한다. 짧은 값은 서버가 거부한다.
 2. 두 Apps Script 프로젝트의 Script Properties에 동일한 `CUSTOMER_SHEET_IMPORT_TOKEN`을 저장한다. 각각 `WEB_API_BASE=https://yejinsaem-production.up.railway.app`도 설정한다.
 3. 각 프로젝트에 파일을 추가한 후 함수를 한 번 수동 실행하여 권한을 부여하고 실행 로그의 `created`/`updated`/`skipped`를 확인한다.
 4. 두 함수에 각각 5분 간격 시간 기반 트리거를 설정한다. 기존 발송, 온보딩, 잔여 횟수 트리거는 건드리지 않는다.

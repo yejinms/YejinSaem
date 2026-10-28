@@ -666,7 +666,7 @@ def verify_sheet_sync_token(authorization: str | None = Header(default=None)) ->
 
 def verify_customer_sheet_token(authorization: str | None = Header(default=None)) -> None:
     token = os.getenv("CUSTOMER_SHEET_IMPORT_TOKEN", "").strip()
-    if not token:
+    if len(token) < 32:
         raise HTTPException(status_code=503, detail="고객 시트 가져오기가 설정되지 않았습니다.")
     provided = (authorization or "").removeprefix("Bearer ").strip()
     if not authorization or not authorization.startswith("Bearer ") or not hmac.compare_digest(provided, token):
