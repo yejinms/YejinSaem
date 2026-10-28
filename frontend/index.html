@@ -1363,7 +1363,7 @@
       <button class="modal-close" type="button" onclick="closeModal('workbook-import-modal')">✕</button>
     </div>
     <div class="modal-body">
-      <p style="font-size:14px; line-height:1.5">고객 행을 시트나 Markdown 표에서 그대로 붙여넣으세요. 표의 구분선과 뒤쪽 빈 열은 무시합니다. 메시지는 발송되지 않습니다.</p>
+      <p style="font-size:14px; line-height:1.5">고객 행을 시트나 Markdown 표에서 그대로 붙여넣으세요. 표의 구분선과 뒤쪽 빈 열은 무시합니다. 매주 3단어 구매가 웹 고객목록에 아직 없다면 해당 고객도 ‘표에서 붙여넣기’로 가져오세요. 같은 연락처의 두 제품 내역이 한 고객에게 표시됩니다. 메시지는 발송되지 않습니다.</p>
       <textarea id="workbook-import-text" class="feedback-area" rows="5" placeholder="| 구매자명 | 연락처 | 교재단계 | 채널 | 구매유형 | 구매일 | ... |"></textarea>
       <button type="button" class="btn btn-outline" onclick="previewWorkbookImport()">먼저 확인</button>
       <button type="button" class="btn btn-primary" id="workbook-import-save" onclick="saveWorkbookImport()" disabled>구매 내역 저장</button>
@@ -2688,7 +2688,7 @@ async function importParentsBulk() {
     });
 
     const lines = [
-      `신규 ${result.created}명 · 중복 제외 ${result.skipped ?? 0}명 · 실패 ${result.failed}건`,
+      `신규 ${result.created}명 · 기존 고객에 매주 3단어 연결 ${result.updated ?? 0}명 · 중복 제외 ${result.skipped ?? 0}명 · 실패 ${result.failed}건`,
       `파싱 ${result.parsed_rows}행 → 시도 ${result.attempted ?? result.imported}명`,
     ];
     if (result.errors?.length) {
@@ -2704,7 +2704,7 @@ async function importParentsBulk() {
       resultEl.style.display = '';
       resultEl.textContent = lines.join('\n');
     }
-    toast(`가져오기 완료: 신규 ${result.created} · 중복 제외 ${result.skipped ?? 0}`);
+    toast(`가져오기 완료: 신규 ${result.created} · 기존 고객 연결 ${result.updated ?? 0} · 중복 제외 ${result.skipped ?? 0}`);
     closeModal('parent-bulk-modal');
     await loadParents();
     const uploadSelect = document.getElementById('upload-parent-select');
