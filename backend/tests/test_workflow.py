@@ -60,6 +60,19 @@ def test_customer_sheet_rejects_unknown_weekly_product(monkeypatch):
     assert response.status_code == 400
 
 
+def test_customer_sheet_adds_new_weekly_level_for_existing_customer(monkeypatch):
+    monkeypatch.setenv("CUSTOMER_SHEET_IMPORT_TOKEN", "sheet-import-test")
+    headers = {"Authorization": "Bearer sheet-import-test"}
+    first = [["구매자", "010-9999-0043", "", "", "카톡", "표현력"]]
+    second = first + [["구매자", "010-9999-0043", "", "", "카톡", "심화"]]
+    assert client.post("/customer-sheet/weekly", json={"rows": first}, headers=headers).json()["created"] == 1
+    added = client.post("/customer-sheet/weekly", json={"rows": second}, headers=headers)
+    assert added.status_code == 200 and added.json()["updated"] == 1
+    parent = client.get("/admin/parents").json()[0]
+    assert parent["levels"] == ["표현력", "초등심화"]
+    assert client.post("/customer-sheet/weekly", json={"rows": second}, headers=headers).json()["updated"] == 0
+
+
 def setup_function():
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)

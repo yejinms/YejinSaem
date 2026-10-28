@@ -23,7 +23,7 @@ from database import Parent, Submission, WorkbookPurchase, WorkbookUse, get_db
 from datetime_utils import to_utc_iso
 from levels_utils import apply_parent_levels, parent_levels_for_api, resolve_levels_input
 from mission_history import get_last_selected_mission
-from parent_import import import_parents_from_text
+from parent_import import import_parents_from_text, merge_parents_by_phone, parse_bulk_parent_rows
 from storage_maintenance import (
     cleanup_storage,
     create_photos_backup_zip,
@@ -690,6 +690,18 @@ def import_weekly_customer_sheet(body: SheetCustomerImportRequest, db: Session =
     result = import_parents_from_text(db, text)
     if result["errors"]:
         raise HTTPException(status_code=400, detail={"message": "매주 3단어 행을 확인해주세요.", "errors": result["errors"]})
+    parsed, _ = parse_bulk_parent_rows(text)
+    for item in merge_parents_by_phone(parsed):
+        parent = db.query(Parent).filter(Parent.phone_number == item["phone_number"]).first()
+        if not parent or not parent.weekly_words_enabled:
+            continue
+        current = parent_levels_for_api(parent)
+        merged = validate_levels(current + item["levels"])
+        if merged != current:
+            apply_parent_levels(parent, merged)
+            result["updated"] += 1
+            result["skipped"] -= 1
+    db.commit()
     return {key: result[key] for key in ("created", "updated", "skipped", "failed")}
 
 
