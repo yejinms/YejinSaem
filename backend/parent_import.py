@@ -5,6 +5,7 @@ parent_import.py - Parse spreadsheet paste and upsert parents.
 from __future__ import annotations
 
 import re
+import uuid
 from collections import defaultdict
 
 from database import Parent
@@ -151,8 +152,12 @@ def upsert_parent(
         db.refresh(existing)
         return existing, False
 
+    pending_id = pending_kakao_user_id(phone_number)
+    if not manual_kakao and db.query(Parent.id).filter(Parent.kakao_user_id == pending_id).first():
+        pending_id = f"pending:sheet:{uuid.uuid4().hex}"
+
     parent = Parent(
-        kakao_user_id=manual_kakao or pending_kakao_user_id(phone_number),
+        kakao_user_id=manual_kakao or pending_id,
         phone_number=phone_number,
         child_name=child_name,
         child_age=child_age,

@@ -75,6 +75,28 @@ def test_customer_sheet_adds_new_weekly_level_for_existing_customer(monkeypatch)
     assert client.post("/customer-sheet/weekly", json={"rows": second}, headers=headers).json()["updated"] == 0
 
 
+def test_customer_sheet_import_handles_stale_pending_kakao_id(monkeypatch):
+    monkeypatch.setenv("CUSTOMER_SHEET_IMPORT_TOKEN", "sheet-import-test-token-at-least-32-chars")
+    db = SessionLocal()
+    db.add(Parent(kakao_user_id="pending:01099990044", phone_number="01099990045", child_name="기존 고객", level="표현력"))
+    db.commit()
+    db.close()
+
+    response = client.post(
+        "/customer-sheet/weekly",
+        json={"rows": [["신규 고객", "01099990044", "", "", "카톡", "패키지"]]},
+        headers={"Authorization": "Bearer sheet-import-test-token-at-least-32-chars"},
+    )
+    assert response.status_code == 200
+    assert response.json()["created"] == 1
+    db = SessionLocal()
+    original = db.query(Parent).filter(Parent.phone_number == "01099990045").one()
+    added = db.query(Parent).filter(Parent.phone_number == "01099990044").one()
+    assert original.kakao_user_id == "pending:01099990044"
+    assert added.kakao_user_id.startswith("pending:sheet:")
+    db.close()
+
+
 def setup_function():
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
