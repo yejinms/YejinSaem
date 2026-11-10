@@ -28,7 +28,7 @@ from database import init_db
 from storage_r2_archive import request_archive_check
 
 # Import routers
-from routers import admin, kakao, parents
+from routers import admin, channel_inbox, kakao, parents
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -58,6 +58,7 @@ app.add_middleware(
 # Include routers
 app.include_router(kakao.router)
 app.include_router(admin.router)
+app.include_router(channel_inbox.router)
 app.include_router(admin.sheet_router)
 app.include_router(admin.customer_sheet_router)
 app.include_router(parents.router)

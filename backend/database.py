@@ -122,6 +122,25 @@ class Submission(Base):
     parent = relationship("Parent", back_populates="submissions")
 
 
+class ChannelInboxItem(Base):
+    """An unread Kakao chat captured before it is opened by the browser helper."""
+    __tablename__ = "channel_inbox_items"
+
+    id = Column(Integer, primary_key=True)
+    source_key = Column(String, unique=True, nullable=False, index=True)
+    chat_url = Column(String, nullable=False)
+    room_name = Column(String, nullable=False)
+    message_text = Column(Text, nullable=True)
+    category = Column(String, nullable=False, default="unprocessed")
+    status = Column(String, nullable=False, default="open")
+    photo_count = Column(Integer, nullable=False, default=0)
+    parent_id = Column(Integer, ForeignKey("parents.id"), nullable=True)
+    submission_id = Column(Integer, ForeignKey("submissions.id"), nullable=True)
+    error = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=utc_now_naive)
+    updated_at = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive)
+
+
 def get_db():
     """Dependency for FastAPI to get a DB session."""
     db = SessionLocal()
