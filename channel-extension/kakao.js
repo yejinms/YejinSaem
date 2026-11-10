@@ -34,8 +34,8 @@ async function photoDataUrl(blob) {
 }
 
 async function bundlePhotos(item) {
-  const button = item.querySelector('.box_package .btn_save');
-  const anchor = item.querySelector('.box_package a[download]');
+  const button = item.querySelector('.item_expiry .btn_save');
+  const anchor = item.querySelector('.item_expiry a[download]');
   const count = item.querySelectorAll('.box_package img.thumb_g').length;
   if (!button || !anchor || !count) throw new Error('묶음 사진을 확인할 수 없습니다.');
   const pending = [];
