@@ -98,6 +98,12 @@ def find_parent(db: Session, room_name: str, message_text: str) -> tuple[Optiona
         if len(child_matches) == 1:
             return child_matches[0], ""
         return None, "같은 구매자명의 자녀가 여럿입니다. 아이를 수동 확인해 주세요."
+    # Some customers are recorded as "buyer name + Kakao nickname".
+    aliases = [p for p in parents if p.child_name.strip().split()[-1] == name]
+    if len(aliases) == 1:
+        return aliases[0], ""
+    if len(aliases) > 1:
+        return None, "같은 채팅방 별칭을 사용하는 고객이 여럿입니다. 수동 확인이 필요합니다."
     return None, "채팅방명과 일치하는 구매자명을 찾지 못했습니다."
 
 

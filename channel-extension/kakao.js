@@ -22,6 +22,45 @@ async function imageType(blob) {
   return null;
 }
 
+async function photoDataUrl(blob) {
+  const mime = await imageType(blob);
+  if (!mime || blob.size > 10 * 1024 * 1024) throw new Error('사진 형식 또는 크기를 확인할 수 없습니다.');
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(new Blob([blob], {type: mime}));
+  });
+}
+
+async function bundlePhotos(item) {
+  const button = item.querySelector('.box_package .btn_save');
+  const anchor = item.querySelector('.box_package a[download]');
+  const count = item.querySelectorAll('.box_package img.thumb_g').length;
+  if (!button || !anchor || !count) throw new Error('묶음 사진을 확인할 수 없습니다.');
+  const pending = [];
+  const intercept = event => {
+    event.preventDefault();
+    event.stopPropagation();
+    const url = anchor.href;
+    pending.push(fetch(url).then(response => {
+      if (!response.ok) throw new Error('카카오 사진 가져오기 실패');
+      return response.blob();
+    }).then(photoDataUrl));
+  };
+  anchor.addEventListener('click', intercept, true);
+  try {
+    button.click();
+    for (let attempt = 0; attempt < 100 && pending.length < count; attempt++) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    if (pending.length !== count) throw new Error(`묶음 사진 ${count}장 중 ${pending.length}장만 확인했습니다.`);
+    return await Promise.all(pending);
+  } finally {
+    anchor.removeEventListener('click', intercept, true);
+  }
+}
+
 async function unreadRows() {
   for (let attempt = 0; attempt < 40 && !document.querySelector('.ReactVirtualized__List.list_board'); attempt++) {
     await new Promise(resolve => setTimeout(resolve, 250));
@@ -76,28 +115,23 @@ async function captureChat(chatUrl, preview, unreadCount) {
   if (!incoming.length) throw new Error('최근 수신 메시지를 찾지 못했습니다.');
   const selected = incoming.flatMap(group => group.items);
   const message_text = selected.flatMap(item => [...item.querySelectorAll('.txt_chat')]
-    .map(node => node.innerText.trim())).filter(Boolean).join('\n').slice(0, 5000) || preview || '';
+    .map(node => node.innerText.trim())).filter(Boolean).join('\n').slice(0, 5000) ||
+    (/^사진\s*\d+장$/.test(preview || '') ? '' : preview || '');
   const imageLinks = selected.flatMap(item => [...item.querySelectorAll('a.btn_save[href*="/chatlogs/"]')]);
-  if (imageLinks.length > 10) throw new Error('사진이 10장을 넘습니다. 직접 확인해 주세요.');
+  const bundles = selected.filter(item => item.querySelector('.box_package'));
+  const expectedCount = imageLinks.length + bundles.reduce((sum, item) => sum + item.querySelectorAll('.box_package img.thumb_g').length, 0);
+  if (expectedCount > 10) throw new Error('사진이 10장을 넘습니다. 직접 확인해 주세요.');
   const dataUrls = [];
   for (const link of imageLinks) {
     try {
       const response = await fetch(link.href, {credentials: 'include'});
-      if (!response.ok) continue;
-      const blob = await response.blob();
-      const mime = await imageType(blob);
-      if (!mime || blob.size > 10 * 1024 * 1024) continue;
-      const image = new Blob([blob], {type: mime});
-      dataUrls.push(await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = reject;
-        reader.readAsDataURL(image);
-      }));
+      if (!response.ok) throw new Error('사진 가져오기 실패');
+      dataUrls.push(await photoDataUrl(await response.blob()));
     } catch (_) { /* A failed image is reported as a capture failure below. */ }
   }
-  if (imageLinks.length && dataUrls.length !== imageLinks.length) {
-    throw new Error(`사진 ${imageLinks.length}장 중 ${dataUrls.length}장만 가져왔습니다. 직접 확인해 주세요.`);
+  for (const item of bundles) dataUrls.push(...await bundlePhotos(item));
+  if (dataUrls.length !== expectedCount) {
+    throw new Error(`사진 ${expectedCount}장 중 ${dataUrls.length}장만 가져왔습니다. 직접 확인해 주세요.`);
   }
   return {message_text, images: dataUrls, chat_url: location.href};
 }
