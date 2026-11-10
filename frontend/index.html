@@ -1124,6 +1124,7 @@
     <button class="tab-btn active" role="tab" aria-selected="true" onclick="switchTab('pending')" id="tab-pending">대기 목록</button>
     <button class="tab-btn" role="tab" aria-selected="false" onclick="switchTab('history')" id="tab-history">이력</button>
     <button class="tab-btn" role="tab" aria-selected="false" onclick="switchTab('parents')" id="tab-parents">학부모 관리</button>
+    <button class="tab-btn" role="tab" aria-selected="false" onclick="switchTab('channel-cs')" id="tab-channel-cs">카카오채널 CS관리 <span id="channel-cs-count"></span></button>
   </nav>
 </div>
 
@@ -1178,6 +1179,22 @@
   <div id="pending-list">
     <div class="loading">불러오는 중...</div>
   </div>
+</div>
+
+<!-- Tab: Kakao Channel intake and exceptions -->
+<div class="tab-panel" id="panel-channel-cs">
+  <div class="card"><div class="card-body">
+    <div class="section-title">카카오채널 수신</div>
+    <p class="parent-sub">브라우저 확장 기능이 설치된 같은 브라우저에서 카카오채널에 로그인한 뒤 실행해 주세요. 읽지 않은 채팅을 열기 전에 목록을 기록합니다. 첨삭 초안과 카카오 답장은 만들거나 보내지 않습니다.</p>
+    <button class="btn btn-outline" type="button" onclick="previewChannelIntake()">읽지 않은 채팅 미리보기</button>
+    <button class="btn btn-primary" id="channel-intake-btn" type="button" onclick="runChannelIntake()">읽지 않은 카톡 첨삭 프로그램으로 전송</button>
+    <p id="channel-intake-status" class="parent-sub" aria-live="polite" style="margin-top:10px"></p>
+  </div></div>
+  <div style="display:flex; justify-content:space-between; align-items:center; margin:16px 0 12px;">
+    <div class="section-title" style="margin:0">확인할 채팅</div>
+    <button class="btn btn-outline btn-sm" onclick="loadChannelInbox()">새로고침</button>
+  </div>
+  <div id="channel-inbox-list"></div>
 </div>
 
 <!-- Tab: History -->
@@ -1675,6 +1692,7 @@ function switchTab(tab) {
 
   if (tab === 'pending') loadPending();
   else if (tab === 'history') loadHistory();
+  else if (tab === 'channel-cs') loadChannelInbox();
   else if (tab === 'parents') {
     loadParents();
     loadStorageStatus();
@@ -2034,6 +2052,142 @@ async function createDirectSubmission() {
     btn.disabled = false;
     btn.innerHTML = '제출 만들기';
   }
+}
+
+// ===== Kakao Channel intake =====
+const CHANNEL_BRIDGE = 'yejinsaem-channel-intake-v1';
+const CHANNEL_CATEGORY_LABELS = {
+  unprocessed: '수집 대기', capture_failed: '가져오기 실패', no_photo: '사진 없음',
+  cs: 'CS 문의', feedback: '학부모 피드백', review: '내용 확인',
+  match_failed: '고객 확인', product_review: '교재 확인', upload_failed: '업로드 실패',
+  transferred: '제출 생성 완료'
+};
+
+function channelBridgeRequest(action, payload = {}) {
+  return new Promise((resolve, reject) => {
+    const requestId = crypto.randomUUID();
+    const timer = setTimeout(() => {
+      window.removeEventListener('message', onReply);
+      reject(new Error('브라우저 확장 기능의 응답이 없습니다. 설치·로그인 상태를 확인해 주세요.'));
+    }, 30000);
+    function onReply(event) {
+      if (event.source !== window || event.origin !== location.origin ||
+          event.data?.bridge !== CHANNEL_BRIDGE || event.data?.requestId !== requestId ||
+          event.data?.direction !== 'to-page') return;
+      clearTimeout(timer);
+      window.removeEventListener('message', onReply);
+      event.data.error ? reject(new Error(event.data.error)) : resolve(event.data.result);
+    }
+    window.addEventListener('message', onReply);
+    window.postMessage({bridge: CHANNEL_BRIDGE, direction: 'to-extension', requestId, action, payload}, location.origin);
+  });
+}
+
+async function previewChannelIntake() {
+  const status = document.getElementById('channel-intake-status');
+  status.textContent = '읽지 않은 채팅을 조회하는 중...';
+  try {
+    const rooms = await channelBridgeRequest('scan');
+    status.textContent = rooms.length
+      ? `${rooms.length}건: ${rooms.map(room => room.room_name).join(', ')}`
+      : '확인 가능한 읽지 않은 채팅이 없습니다.';
+  } catch (error) {
+    status.textContent = `미리보기 실패: ${error.message}`;
+  }
+}
+
+async function runChannelIntake() {
+  const button = document.getElementById('channel-intake-btn');
+  const status = document.getElementById('channel-intake-status');
+  button.disabled = true;
+  try {
+    status.textContent = '읽지 않은 채팅을 확인하는 중...';
+    const discovered = await channelBridgeRequest('scan');
+    if (!discovered.length) {
+      status.textContent = '확인 가능한 읽지 않은 채팅이 없습니다. 카카오채널 로그인과 확장 기능을 확인해 주세요.';
+      return;
+    }
+    // Persist every discovered room before opening a chat (opening may clear its unread marker).
+    const saved = await api('/admin/channel-inbox/discover', {
+      method: 'POST', body: JSON.stringify(discovered.map(({source_key, chat_url, room_name}) =>
+        ({source_key, chat_url, room_name})))
+    });
+    let transferred = 0, needsReview = 0;
+    for (let i = 0; i < discovered.length; i++) {
+      const item = saved[i];
+      status.textContent = `${i + 1}/${discovered.length} · ${item.room_name} 확인 중...`;
+      if (item.submission_id || (item.category !== 'unprocessed' && item.category !== 'capture_failed')) continue;
+      try {
+        const captured = await channelBridgeRequest('open', {
+          chat_url: item.chat_url, preview: discovered[i].preview,
+          room_name: item.room_name, unread_count: discovered[i].unread_count
+        });
+        const form = new FormData();
+        form.set('message_text', captured.message_text || '');
+        if (captured.chat_url) form.set('chat_url', captured.chat_url);
+        for (const [index, dataUrl] of (captured.images || []).entries()) {
+          const response = await fetch(dataUrl);
+          const blob = await response.blob();
+          form.append('photos', new File([blob], `kakao-${index + 1}.jpg`, {type: blob.type || 'image/jpeg'}));
+        }
+        const result = await api(`/admin/channel-inbox/${item.id}/process`, {method: 'POST', body: form});
+        if (result.submission_id) transferred++; else needsReview++;
+      } catch (error) {
+        needsReview++;
+        await api(`/admin/channel-inbox/${item.id}/fail`, {
+          method: 'POST', body: JSON.stringify({reason: error.message || String(error)})
+        });
+      }
+      await loadChannelInbox();
+    }
+    status.textContent = `완료: 제출 ${transferred}건, 확인 필요 ${needsReview}건. 확인할 채팅 목록을 살펴봐 주세요.`;
+    await loadPending();
+  } catch (error) {
+    status.textContent = `중단됨: ${error.message}`;
+    try {
+      const [failure] = await api('/admin/channel-inbox/discover', {
+        method: 'POST', body: JSON.stringify([{
+          source_key: `scan-failure:${new Date().toISOString()}`,
+          chat_url: 'https://business.kakao.com/space/998603/channel/_Dqixdn/chats',
+          room_name: '카카오채널 전체 수집'
+        }])
+      });
+      await api(`/admin/channel-inbox/${failure.id}/fail`, {
+        method: 'POST', body: JSON.stringify({reason: error.message || String(error)})
+      });
+    } catch (_) { /* The visible status still reports the failure if the server is unavailable. */ }
+  } finally {
+    button.disabled = false;
+    await loadChannelInbox();
+  }
+}
+
+async function loadChannelInbox() {
+  const container = document.getElementById('channel-inbox-list');
+  try {
+    const items = await api('/admin/channel-inbox');
+    const open = items.filter(item => item.status === 'open' && !item.submission_id);
+    document.getElementById('channel-cs-count').textContent = open.length ? `(${open.length})` : '';
+    container.innerHTML = open.length ? open.map(item => `
+      <div class="card" style="margin-bottom:10px"><div class="card-body">
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+          <strong>${escapeHtml(item.room_name)}</strong><span>${escapeHtml(CHANNEL_CATEGORY_LABELS[item.category] || item.category)}</span>
+        </div>
+        <p style="white-space:pre-wrap;margin:8px 0">${escapeHtml(item.message_text || item.error || '내용을 아직 가져오지 못했습니다.')}</p>
+        ${item.error && item.message_text ? `<p class="parent-sub">${escapeHtml(item.error)}</p>` : ''}
+        <div style="display:flex;gap:8px;align-items:center">
+          <a class="btn btn-outline btn-sm" href="${escapeHtml(item.chat_url)}" target="_blank" rel="noopener">카카오 채팅 열기</a>
+          <button class="btn btn-outline btn-sm" type="button" onclick="resolveChannelItem(${item.id})">확인 완료</button>
+        </div>
+      </div></div>`).join('') : '<div class="empty"><p>확인할 채팅이 없습니다.</p></div>';
+  } catch (error) {
+    container.innerHTML = `<div class="empty"><p>${escapeHtml(error.message)}</p></div>`;
+  }
+}
+
+async function resolveChannelItem(id) {
+  await api(`/admin/channel-inbox/${id}/resolve`, {method: 'PUT', body: JSON.stringify({resolved: true})});
+  await loadChannelInbox();
 }
 
 // ===== Pending Submissions =====
@@ -3019,6 +3173,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('DOMContentLoaded', () => {
   loadUploadParents();
   loadPending();
+  loadChannelInbox();
 
   document.getElementById('upload-parent-search')?.addEventListener('input', renderUploadParentSelect);
   document.getElementById('upload-parent-select')?.addEventListener('change', refreshUploadChoices);

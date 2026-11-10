@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "예진샘 카카오채널 수신 도우미",
+  "version": "0.1.0",
+  "description": "관리자 버튼으로 읽지 않은 카카오채널 채팅을 확인합니다. 답장은 보내지 않습니다.",
+  "permissions": ["tabs"],
+  "host_permissions": ["https://business.kakao.com/*"],
+  "background": {"service_worker": "background.js"},
+  "content_scripts": [
+    {
+      "matches": ["https://business.kakao.com/space/*/channel/*/chats*"],
+      "js": ["kakao.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://yejinsaem-production.up.railway.app/*", "http://localhost:8000/*", "http://127.0.0.1:8000/*"],
+      "js": ["admin-bridge.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
