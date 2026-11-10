@@ -43,6 +43,10 @@ async function captureChat(payload) {
     const loaded = waitForLoaded(tab.id);
     await chrome.tabs.update(tab.id, {url: chatUrl, active: true});
     await loaded;
+  } else {
+    const loaded = waitForLoaded(tab.id);
+    await chrome.tabs.reload(tab.id);
+    await loaded;
   }
   return chrome.tabs.sendMessage(tab.id, {action: 'capture', ...payload});
 }

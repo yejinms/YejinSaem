@@ -63,6 +63,21 @@ def test_photo_only_submission_uses_unique_buyer_name():
     assert result.json()['submission_id'] is not None
 
 
+def test_kakao_room_alias_matches_unique_customer_suffix():
+    db = SessionLocal()
+    db.add(Parent(kakao_user_id='k-alias', child_name='김성희 KSH', level='초등기초', weekly_words_enabled=True))
+    db.commit()
+    db.close()
+    item = _discover('alias', 'KSH')
+    result = workflow.client.post(
+        f"/admin/channel-inbox/{item['id']}/process",
+        files=[('photos', ('one.jpg', b'image', 'image/jpeg'))],
+    )
+    assert result.status_code == 200
+    assert result.json()['category'] == 'transferred'
+    assert result.json()['submission_id'] is not None
+
+
 def test_siblings_with_same_buyer_need_manual_review():
     db = SessionLocal()
     db.add_all([
